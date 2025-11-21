@@ -1,0 +1,20 @@
+[theme]
+base="light"
+
+# Akcenty w kolorze turkusowo-morskim
+primaryColor="#008B8B"                # darkcyan
+
+# Tło jasne, jak piasek
+backgroundColor="#FAFAF0"             # very light beige
+
+# Sidebar i panele pomocnicze w kolorze nieba/lawendy
+secondaryBackgroundColor="#E6E6FA"    # lavender
+
+# Tekst czytelny na jasnym tle
+textColor="#222222"                   # dark gray
+
+# Kod na tle błękitnym
+codeBackgroundColor="#B0E0E6"         # powder blue
+
+# Czcionka bezszeryfowa
+font="sans serif"
