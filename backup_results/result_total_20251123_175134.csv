@@ -1,0 +1,475 @@
+Isla,Fecha,Mes,Año,MesNum,Pasajeros
+Fuerteventura,2019-01-01,enero,2019,1,208548
+Fuerteventura,2019-02-01,febrero,2019,2,215688
+Fuerteventura,2019-03-01,marzo,2019,3,250148
+Fuerteventura,2019-04-01,abril,2019,4,239006
+Fuerteventura,2019-05-01,mayo,2019,5,204212
+Fuerteventura,2019-06-01,junio,2019,6,227570
+Fuerteventura,2019-07-01,julio,2019,7,255590
+Fuerteventura,2019-08-01,agosto,2019,8,257070
+Fuerteventura,2019-09-01,septiembre,2019,9,225448
+Fuerteventura,2019-10-01,octubre,2019,10,244407
+Fuerteventura,2019-11-01,noviembre,2019,11,225716
+Fuerteventura,2019-12-01,diciembre,2019,12,231012
+Fuerteventura,2020-01-01,enero,2020,1,200041
+Fuerteventura,2020-02-01,febrero,2020,2,231762
+Fuerteventura,2020-03-01,marzo,2020,3,99651
+Fuerteventura,2020-04-01,abril,2020,4,1305
+Fuerteventura,2020-05-01,mayo,2020,5,2993
+Fuerteventura,2020-06-01,junio,2020,6,15735
+Fuerteventura,2020-07-01,julio,2020,7,60163
+Fuerteventura,2020-08-01,agosto,2020,8,127168
+Fuerteventura,2020-09-01,septiembre,2020,9,61682
+Fuerteventura,2020-10-01,octubre,2020,10,63589
+Fuerteventura,2020-11-01,noviembre,2020,11,59217
+Fuerteventura,2020-12-01,diciembre,2020,12,72426
+Fuerteventura,2021-01-01,enero,2021,1,37417
+Fuerteventura,2021-02-01,febrero,2021,2,35316
+Fuerteventura,2021-03-01,marzo,2021,3,52455
+Fuerteventura,2021-04-01,abril,2021,4,50298
+Fuerteventura,2021-05-01,mayo,2021,5,78773
+Fuerteventura,2021-06-01,junio,2021,6,102153
+Fuerteventura,2021-07-01,julio,2021,7,165948
+Fuerteventura,2021-08-01,agosto,2021,8,196429
+Fuerteventura,2021-09-01,septiembre,2021,9,177716
+Fuerteventura,2021-10-01,octubre,2021,10,239139
+Fuerteventura,2021-11-01,noviembre,2021,11,213627
+Fuerteventura,2021-12-01,diciembre,2021,12,201495
+Fuerteventura,2022-01-01,enero,2022,1,144667
+Fuerteventura,2022-02-01,febrero,2022,2,191259
+Fuerteventura,2022-03-01,marzo,2022,3,231484
+Fuerteventura,2022-04-01,abril,2022,4,242014
+Fuerteventura,2022-05-01,mayo,2022,5,205181
+Fuerteventura,2022-06-01,junio,2022,6,226353
+Fuerteventura,2022-07-01,julio,2022,7,268632
+Fuerteventura,2022-08-01,agosto,2022,8,271926
+Fuerteventura,2022-09-01,septiembre,2022,9,235633
+Fuerteventura,2022-10-01,octubre,2022,10,266571
+Fuerteventura,2022-11-01,noviembre,2022,11,237040
+Fuerteventura,2022-12-01,diciembre,2022,12,257811
+Fuerteventura,2023-01-01,enero,2023,1,221473
+Fuerteventura,2023-02-01,febrero,2023,2,233547
+Fuerteventura,2023-03-01,marzo,2023,3,260152
+Fuerteventura,2023-04-01,abril,2023,4,246164
+Fuerteventura,2023-05-01,mayo,2023,5,220887
+Fuerteventura,2023-06-01,junio,2023,6,222616
+Fuerteventura,2023-07-01,julio,2023,7,264123
+Fuerteventura,2023-08-01,agosto,2023,8,259329
+Fuerteventura,2023-09-01,septiembre,2023,9,242281
+Fuerteventura,2023-10-01,octubre,2023,10,266892
+Fuerteventura,2023-11-01,noviembre,2023,11,256722
+Fuerteventura,2023-12-01,diciembre,2023,12,266080
+Fuerteventura,2024-01-01,enero,2024,1,241083
+Fuerteventura,2024-02-01,febrero,2024,2,261243
+Fuerteventura,2024-03-01,marzo,2024,3,295415
+Fuerteventura,2024-04-01,abril,2024,4,242172
+Fuerteventura,2024-05-01,mayo,2024,5,232565
+Fuerteventura,2024-06-01,junio,2024,6,245430
+Fuerteventura,2024-07-01,julio,2024,7,278676
+Fuerteventura,2024-08-01,agosto,2024,8,279505
+Fuerteventura,2024-09-01,septiembre,2024,9,253941
+Fuerteventura,2024-10-01,octubre,2024,10,283317
+Fuerteventura,2024-11-01,noviembre,2024,11,285657
+Fuerteventura,2024-12-01,diciembre,2024,12,289709
+Fuerteventura,2025-01-01,enero,2025,1,261868
+Fuerteventura,2025-02-01,febrero,2025,2,278970
+Fuerteventura,2025-03-01,marzo,2025,3,311092
+Fuerteventura,2025-04-01,abril,2025,4,282430
+Fuerteventura,2025-05-01,mayo,2025,5,253402
+Fuerteventura,2025-06-01,junio,2025,6,266167
+Fuerteventura,2025-07-01,julio,2025,7,313030
+Gran Canaria,2019-01-01,enero,2019,1,571340
+Gran Canaria,2019-02-01,febrero,2019,2,559443
+Gran Canaria,2019-03-01,marzo,2019,3,628240
+Gran Canaria,2019-04-01,abril,2019,4,534499
+Gran Canaria,2019-05-01,mayo,2019,5,454957
+Gran Canaria,2019-06-01,junio,2019,6,491105
+Gran Canaria,2019-07-01,julio,2019,7,539061
+Gran Canaria,2019-08-01,agosto,2019,8,531613
+Gran Canaria,2019-09-01,septiembre,2019,9,493785
+Gran Canaria,2019-10-01,octubre,2019,10,556640
+Gran Canaria,2019-11-01,noviembre,2019,11,590929
+Gran Canaria,2019-12-01,diciembre,2019,12,624483
+Gran Canaria,2020-01-01,enero,2020,1,568392
+Gran Canaria,2020-02-01,febrero,2020,2,555455
+Gran Canaria,2020-03-01,marzo,2020,3,235508
+Gran Canaria,2020-04-01,abril,2020,4,6103
+Gran Canaria,2020-05-01,mayo,2020,5,13413
+Gran Canaria,2020-06-01,junio,2020,6,51596
+Gran Canaria,2020-07-01,julio,2020,7,198209
+Gran Canaria,2020-08-01,agosto,2020,8,224388
+Gran Canaria,2020-09-01,septiembre,2020,9,140555
+Gran Canaria,2020-10-01,octubre,2020,10,155462
+Gran Canaria,2020-11-01,noviembre,2020,11,151279
+Gran Canaria,2020-12-01,diciembre,2020,12,181103
+Gran Canaria,2021-01-01,enero,2021,1,104518
+Gran Canaria,2021-02-01,febrero,2021,2,88319
+Gran Canaria,2021-03-01,marzo,2021,3,135170
+Gran Canaria,2021-04-01,abril,2021,4,127881
+Gran Canaria,2021-05-01,mayo,2021,5,186157
+Gran Canaria,2021-06-01,junio,2021,6,235975
+Gran Canaria,2021-07-01,julio,2021,7,335600
+Gran Canaria,2021-08-01,agosto,2021,8,386847
+Gran Canaria,2021-09-01,septiembre,2021,9,363471
+Gran Canaria,2021-10-01,octubre,2021,10,480569
+Gran Canaria,2021-11-01,noviembre,2021,11,490760
+Gran Canaria,2021-12-01,diciembre,2021,12,508520
+Gran Canaria,2022-01-01,enero,2022,1,394148
+Gran Canaria,2022-02-01,febrero,2022,2,446811
+Gran Canaria,2022-03-01,marzo,2022,3,509624
+Gran Canaria,2022-04-01,abril,2022,4,520560
+Gran Canaria,2022-05-01,mayo,2022,5,445334
+Gran Canaria,2022-06-01,junio,2022,6,460797
+Gran Canaria,2022-07-01,julio,2022,7,541863
+Gran Canaria,2022-08-01,agosto,2022,8,535323
+Gran Canaria,2022-09-01,septiembre,2022,9,474314
+Gran Canaria,2022-10-01,octubre,2022,10,582566
+Gran Canaria,2022-11-01,noviembre,2022,11,588231
+Gran Canaria,2022-12-01,diciembre,2022,12,644530
+Gran Canaria,2023-01-01,enero,2023,1,584417
+Gran Canaria,2023-02-01,febrero,2023,2,573700
+Gran Canaria,2023-03-01,marzo,2023,3,615556
+Gran Canaria,2023-04-01,abril,2023,4,561947
+Gran Canaria,2023-05-01,mayo,2023,5,491655
+Gran Canaria,2023-06-01,junio,2023,6,492879
+Gran Canaria,2023-07-01,julio,2023,7,577645
+Gran Canaria,2023-08-01,agosto,2023,8,556213
+Gran Canaria,2023-09-01,septiembre,2023,9,522700
+Gran Canaria,2023-10-01,octubre,2023,10,626498
+Gran Canaria,2023-11-01,noviembre,2023,11,621956
+Gran Canaria,2023-12-01,diciembre,2023,12,690092
+Gran Canaria,2024-01-01,enero,2024,1,629857
+Gran Canaria,2024-02-01,febrero,2024,2,658274
+Gran Canaria,2024-03-01,marzo,2024,3,722702
+Gran Canaria,2024-04-01,abril,2024,4,578511
+Gran Canaria,2024-05-01,mayo,2024,5,537235
+Gran Canaria,2024-06-01,junio,2024,6,556408
+Gran Canaria,2024-07-01,julio,2024,7,611351
+Gran Canaria,2024-08-01,agosto,2024,8,597965
+Gran Canaria,2024-09-01,septiembre,2024,9,559241
+Gran Canaria,2024-10-01,octubre,2024,10,668803
+Gran Canaria,2024-11-01,noviembre,2024,11,703520
+Gran Canaria,2024-12-01,diciembre,2024,12,744752
+Gran Canaria,2025-01-01,enero,2025,1,664699
+Gran Canaria,2025-02-01,febrero,2025,2,665401
+Gran Canaria,2025-03-01,marzo,2025,3,722082
+Gran Canaria,2025-04-01,abril,2025,4,658845
+Gran Canaria,2025-05-01,mayo,2025,5,569871
+Gran Canaria,2025-06-01,junio,2025,6,590021
+Gran Canaria,2025-07-01,julio,2025,7,649804
+La Palma,2019-01-01,enero,2019,1,55029
+La Palma,2019-02-01,febrero,2019,2,55525
+La Palma,2019-03-01,marzo,2019,3,66522
+La Palma,2019-04-01,abril,2019,4,61156
+La Palma,2019-05-01,mayo,2019,5,57150
+La Palma,2019-06-01,junio,2019,6,57679
+La Palma,2019-07-01,julio,2019,7,66060
+La Palma,2019-08-01,agosto,2019,8,64441
+La Palma,2019-09-01,septiembre,2019,9,57265
+La Palma,2019-10-01,octubre,2019,10,60131
+La Palma,2019-11-01,noviembre,2019,11,61779
+La Palma,2019-12-01,diciembre,2019,12,66931
+La Palma,2020-01-01,enero,2020,1,57421
+La Palma,2020-02-01,febrero,2020,2,57172
+La Palma,2020-03-01,marzo,2020,3,27420
+La Palma,2020-04-01,abril,2020,4,1150
+La Palma,2020-05-01,mayo,2020,5,2469
+La Palma,2020-06-01,junio,2020,6,12816
+La Palma,2020-07-01,julio,2020,7,36603
+La Palma,2020-08-01,agosto,2020,8,43489
+La Palma,2020-09-01,septiembre,2020,9,29192
+La Palma,2020-10-01,octubre,2020,10,28832
+La Palma,2020-11-01,noviembre,2020,11,28123
+La Palma,2020-12-01,diciembre,2020,12,29544
+La Palma,2021-01-01,enero,2021,1,17362
+La Palma,2021-02-01,febrero,2021,2,19680
+La Palma,2021-03-01,marzo,2021,3,27250
+La Palma,2021-04-01,abril,2021,4,22933
+La Palma,2021-05-01,mayo,2021,5,32196
+La Palma,2021-06-01,junio,2021,6,40218
+La Palma,2021-07-01,julio,2021,7,51709
+La Palma,2021-08-01,agosto,2021,8,54381
+La Palma,2021-09-01,septiembre,2021,9,37319
+La Palma,2021-10-01,octubre,2021,10,21379
+La Palma,2021-11-01,noviembre,2021,11,17725
+La Palma,2021-12-01,diciembre,2021,12,31198
+La Palma,2022-01-01,enero,2022,1,27557
+La Palma,2022-02-01,febrero,2022,2,35443
+La Palma,2022-03-01,marzo,2022,3,43387
+La Palma,2022-04-01,abril,2022,4,55239
+La Palma,2022-05-01,mayo,2022,5,52756
+La Palma,2022-06-01,junio,2022,6,57347
+La Palma,2022-07-01,julio,2022,7,68645
+La Palma,2022-08-01,agosto,2022,8,66583
+La Palma,2022-09-01,septiembre,2022,9,55197
+La Palma,2022-10-01,octubre,2022,10,63471
+La Palma,2022-11-01,noviembre,2022,11,55788
+La Palma,2022-12-01,diciembre,2022,12,59869
+La Palma,2023-01-01,enero,2023,1,48009
+La Palma,2023-02-01,febrero,2023,2,51015
+La Palma,2023-03-01,marzo,2023,3,58522
+La Palma,2023-04-01,abril,2023,4,56247
+La Palma,2023-05-01,mayo,2023,5,53051
+La Palma,2023-06-01,junio,2023,6,50272
+La Palma,2023-07-01,julio,2023,7,63654
+La Palma,2023-08-01,agosto,2023,8,60815
+La Palma,2023-09-01,septiembre,2023,9,55649
+La Palma,2023-10-01,octubre,2023,10,58152
+La Palma,2023-11-01,noviembre,2023,11,60122
+La Palma,2023-12-01,diciembre,2023,12,66561
+La Palma,2024-01-01,enero,2024,1,55115
+La Palma,2024-02-01,febrero,2024,2,59128
+La Palma,2024-03-01,marzo,2024,3,69126
+La Palma,2024-04-01,abril,2024,4,56281
+La Palma,2024-05-01,mayo,2024,5,58911
+La Palma,2024-06-01,junio,2024,6,245430
+La Palma,2024-07-01,julio,2024,7,67084
+La Palma,2024-08-01,agosto,2024,8,68583
+La Palma,2024-09-01,septiembre,2024,9,57983
+La Palma,2024-10-01,octubre,2024,10,61361
+La Palma,2024-11-01,noviembre,2024,11,64431
+La Palma,2024-12-01,diciembre,2024,12,69209
+La Palma,2025-01-01,enero,2025,1,60693
+La Palma,2025-02-01,febrero,2025,2,59655
+La Palma,2025-03-01,marzo,2025,3,67353
+La Palma,2025-04-01,abril,2025,4,63557
+La Palma,2025-05-01,mayo,2025,5,58163
+La Palma,2025-06-01,junio,2025,6,59188
+La Palma,2025-07-01,julio,2025,7,68287
+Lanzarote,2019-01-01,enero,2019,1,269495
+Lanzarote,2019-02-01,febrero,2019,2,279620
+Lanzarote,2019-03-01,marzo,2019,3,328728
+Lanzarote,2019-04-01,abril,2019,4,309592
+Lanzarote,2019-05-01,mayo,2019,5,283622
+Lanzarote,2019-06-01,junio,2019,6,303454
+Lanzarote,2019-07-01,julio,2019,7,331877
+Lanzarote,2019-08-01,agosto,2019,8,336273
+Lanzarote,2019-09-01,septiembre,2019,9,298307
+Lanzarote,2019-10-01,octubre,2019,10,308296
+Lanzarote,2019-11-01,noviembre,2019,11,277187
+Lanzarote,2019-12-01,diciembre,2019,12,300137
+Lanzarote,2020-01-01,enero,2020,1,251225
+Lanzarote,2020-02-01,febrero,2020,2,272091
+Lanzarote,2020-03-01,marzo,2020,3,121308
+Lanzarote,2020-04-01,abril,2020,4,1484
+Lanzarote,2020-05-01,mayo,2020,5,3974
+Lanzarote,2020-06-01,junio,2020,6,20590
+Lanzarote,2020-07-01,julio,2020,7,107573
+Lanzarote,2020-08-01,agosto,2020,8,133284
+Lanzarote,2020-09-01,septiembre,2020,9,75950
+Lanzarote,2020-10-01,octubre,2020,10,87773
+Lanzarote,2020-11-01,noviembre,2020,11,66935
+Lanzarote,2020-12-01,diciembre,2020,12,87278
+Lanzarote,2021-01-01,enero,2021,1,33168
+Lanzarote,2021-02-01,febrero,2021,2,26129
+Lanzarote,2021-03-01,marzo,2021,3,42775
+Lanzarote,2021-04-01,abril,2021,4,45840
+Lanzarote,2021-05-01,mayo,2021,5,74795
+Lanzarote,2021-06-01,junio,2021,6,103555
+Lanzarote,2021-07-01,julio,2021,7,181479
+Lanzarote,2021-08-01,agosto,2021,8,232019
+Lanzarote,2021-09-01,septiembre,2021,9,207163
+Lanzarote,2021-10-01,octubre,2021,10,276978
+Lanzarote,2021-11-01,noviembre,2021,11,257347
+Lanzarote,2021-12-01,diciembre,2021,12,239635
+Lanzarote,2022-01-01,enero,2022,1,186515
+Lanzarote,2022-02-01,febrero,2022,2,252679
+Lanzarote,2022-03-01,marzo,2022,3,299429
+Lanzarote,2022-04-01,abril,2022,4,318605
+Lanzarote,2022-05-01,mayo,2022,5,289353
+Lanzarote,2022-06-01,junio,2022,6,302029
+Lanzarote,2022-07-01,julio,2022,7,355753
+Lanzarote,2022-08-01,agosto,2022,8,353975
+Lanzarote,2022-09-01,septiembre,2022,9,305805
+Lanzarote,2022-10-01,octubre,2022,10,343050
+Lanzarote,2022-11-01,noviembre,2022,11,306410
+Lanzarote,2022-12-01,diciembre,2022,12,336927
+Lanzarote,2023-01-01,enero,2023,1,299611
+Lanzarote,2023-02-01,febrero,2023,2,311131
+Lanzarote,2023-03-01,marzo,2023,3,341081
+Lanzarote,2023-04-01,abril,2023,4,340746
+Lanzarote,2023-05-01,mayo,2023,5,320007
+Lanzarote,2023-06-01,junio,2023,6,328207
+Lanzarote,2023-07-01,julio,2023,7,376554
+Lanzarote,2023-08-01,agosto,2023,8,370718
+Lanzarote,2023-09-01,septiembre,2023,9,326534
+Lanzarote,2023-10-01,octubre,2023,10,364879
+Lanzarote,2023-11-01,noviembre,2023,11,334901
+Lanzarote,2023-12-01,diciembre,2023,12,364363
+Lanzarote,2024-01-01,enero,2024,1,321159
+Lanzarote,2024-02-01,febrero,2024,2,351726
+Lanzarote,2024-03-01,marzo,2024,3,395132
+Lanzarote,2024-04-01,abril,2024,4,342450
+Lanzarote,2024-05-01,mayo,2024,5,330807
+Lanzarote,2024-06-01,junio,2024,6,344538
+Lanzarote,2024-07-01,julio,2024,7,379623
+Lanzarote,2024-08-01,agosto,2024,8,390680
+Lanzarote,2024-09-01,septiembre,2024,9,347300
+Lanzarote,2024-10-01,octubre,2024,10,384926
+Lanzarote,2024-11-01,noviembre,2024,11,364443
+Lanzarote,2024-12-01,diciembre,2024,12,380006
+Lanzarote,2025-01-01,enero,2025,1,336665
+Lanzarote,2025-02-01,febrero,2025,2,354068
+Lanzarote,2025-03-01,marzo,2025,3,392278
+Lanzarote,2025-04-01,abril,2025,4,367089
+Lanzarote,2025-05-01,mayo,2025,5,344997
+Lanzarote,2025-06-01,junio,2025,6,359253
+Lanzarote,2025-07-01,julio,2025,7,407837
+Tenerife,2019-01-01,enero,2019,1,690148
+Tenerife,2019-02-01,febrero,2019,2,672766
+Tenerife,2019-03-01,marzo,2019,3,765298
+Tenerife,2019-04-01,abril,2019,4,694300
+Tenerife,2019-05-01,mayo,2019,5,634696
+Tenerife,2019-06-01,junio,2019,6,666296
+Tenerife,2019-07-01,julio,2019,7,718965
+Tenerife,2019-08-01,agosto,2019,8,725343
+Tenerife,2019-09-01,septiembre,2019,9,665838
+Tenerife,2019-10-01,octubre,2019,10,727644
+Tenerife,2019-11-01,noviembre,2019,11,721183
+Tenerife,2019-12-01,diciembre,2019,12,759167
+Tenerife,2020-01-01,enero,2020,1,680734
+Tenerife,2020-02-01,febrero,2020,2,668197
+Tenerife,2020-03-01,marzo,2020,3,269403
+Tenerife,2020-04-01,abril,2020,4,4741
+Tenerife,2020-05-01,mayo,2020,5,11704
+Tenerife,2020-06-01,junio,2020,6,54355
+Tenerife,2020-07-01,julio,2020,7,250241
+Tenerife,2020-08-01,agosto,2020,8,288999
+Tenerife,2020-09-01,septiembre,2020,9,198893
+Tenerife,2020-10-01,octubre,2020,10,201533
+Tenerife,2020-11-01,noviembre,2020,11,167515
+Tenerife,2020-12-01,diciembre,2020,12,192515
+Tenerife,2021-01-01,enero,2021,1,105645
+Tenerife,2021-02-01,febrero,2021,2,115086
+Tenerife,2021-03-01,marzo,2021,3,150367
+Tenerife,2021-04-01,abril,2021,4,150847
+Tenerife,2021-05-01,mayo,2021,5,212128
+Tenerife,2021-06-01,junio,2021,6,273352
+Tenerife,2021-07-01,julio,2021,7,403216
+Tenerife,2021-08-01,agosto,2021,8,500492
+Tenerife,2021-09-01,septiembre,2021,9,479678
+Tenerife,2021-10-01,octubre,2021,10,613127
+Tenerife,2021-11-01,noviembre,2021,11,609145
+Tenerife,2021-12-01,diciembre,2021,12,600272
+Tenerife,2022-01-01,enero,2022,1,489455
+Tenerife,2022-02-01,febrero,2022,2,594583
+Tenerife,2022-03-01,marzo,2022,3,693256
+Tenerife,2022-04-01,abril,2022,4,695010
+Tenerife,2022-05-01,mayo,2022,5,618612
+Tenerife,2022-06-01,junio,2022,6,643934
+Tenerife,2022-07-01,julio,2022,7,721093
+Tenerife,2022-08-01,agosto,2022,8,712479
+Tenerife,2022-09-01,septiembre,2022,9,642299
+Tenerife,2022-10-01,octubre,2022,10,759922
+Tenerife,2022-11-01,noviembre,2022,11,758135
+Tenerife,2022-12-01,diciembre,2022,12,810908
+Tenerife,2023-01-01,enero,2023,1,745587
+Tenerife,2023-02-01,febrero,2023,2,737880
+Tenerife,2023-03-01,marzo,2023,3,799343
+Tenerife,2023-04-01,abril,2023,4,745503
+Tenerife,2023-05-01,mayo,2023,5,686738
+Tenerife,2023-06-01,junio,2023,6,691826
+Tenerife,2023-07-01,julio,2023,7,765723
+Tenerife,2023-08-01,agosto,2023,8,747123
+Tenerife,2023-09-01,septiembre,2023,9,714832
+Tenerife,2023-10-01,octubre,2023,10,820630
+Tenerife,2023-11-01,noviembre,2023,11,825918
+Tenerife,2023-12-01,diciembre,2023,12,885638
+Tenerife,2024-01-01,enero,2024,1,816328
+Tenerife,2024-02-01,febrero,2024,2,844485
+Tenerife,2024-03-01,marzo,2024,3,934106
+Tenerife,2024-04-01,abril,2024,4,790249
+Tenerife,2024-05-01,mayo,2024,5,765110
+Tenerife,2024-06-01,junio,2024,6,784395
+Tenerife,2024-07-01,julio,2024,7,845444
+Tenerife,2024-08-01,agosto,2024,8,843109
+Tenerife,2024-09-01,septiembre,2024,9,791341
+Tenerife,2024-10-01,octubre,2024,10,887450
+Tenerife,2024-11-01,noviembre,2024,11,915787
+Tenerife,2024-12-01,diciembre,2024,12,955955
+Tenerife,2025-01-01,enero,2025,1,877046
+Tenerife,2025-02-01,febrero,2025,2,873776
+Tenerife,2025-03-01,marzo,2025,3,946722
+Tenerife,2025-04-01,abril,2025,4,857507
+Tenerife,2025-05-01,mayo,2025,5,790316
+Tenerife,2025-06-01,junio,2025,6,807025
+Tenerife,2025-07-01,julio,2025,7,881349
+Total Canarias,2019-01-01,enero,2019,1,1794560
+Total Canarias,2019-02-01,febrero,2019,2,1783042
+Total Canarias,2019-03-01,marzo,2019,3,2038936
+Total Canarias,2019-04-01,abril,2019,4,1838553
+Total Canarias,2019-05-01,mayo,2019,5,1634637
+Total Canarias,2019-06-01,junio,2019,6,1746104
+Total Canarias,2019-07-01,julio,2019,7,1911553
+Total Canarias,2019-08-01,agosto,2019,8,1914740
+Total Canarias,2019-09-01,septiembre,2019,9,1740643
+Total Canarias,2019-10-01,octubre,2019,10,1897118
+Total Canarias,2019-11-01,noviembre,2019,11,1876794
+Total Canarias,2019-12-01,diciembre,2019,12,1981730
+Total Canarias,2020-01-01,enero,2020,1,1757813
+Total Canarias,2020-02-01,febrero,2020,2,1784677
+Total Canarias,2020-03-01,marzo,2020,3,753290
+Total Canarias,2020-04-01,abril,2020,4,14783
+Total Canarias,2020-05-01,mayo,2020,5,34553
+Total Canarias,2020-06-01,junio,2020,6,155092
+Total Canarias,2020-07-01,julio,2020,7,652789
+Total Canarias,2020-08-01,agosto,2020,8,817328
+Total Canarias,2020-09-01,septiembre,2020,9,506272
+Total Canarias,2020-10-01,octubre,2020,10,537189
+Total Canarias,2020-11-01,noviembre,2020,11,473069
+Total Canarias,2020-12-01,diciembre,2020,12,562866
+Total Canarias,2021-01-01,enero,2021,1,298110
+Total Canarias,2021-02-01,febrero,2021,2,284530
+Total Canarias,2021-03-01,marzo,2021,3,408017
+Total Canarias,2021-04-01,abril,2021,4,397799
+Total Canarias,2021-05-01,mayo,2021,5,584049
+Total Canarias,2021-06-01,junio,2021,6,755253
+Total Canarias,2021-07-01,julio,2021,7,1137952
+Total Canarias,2021-08-01,agosto,2021,8,1370168
+Total Canarias,2021-09-01,septiembre,2021,9,1265347
+Total Canarias,2021-10-01,octubre,2021,10,1631192
+Total Canarias,2021-11-01,noviembre,2021,11,1588604
+Total Canarias,2021-12-01,diciembre,2021,12,1581120
+Total Canarias,2022-01-01,enero,2022,1,1242342
+Total Canarias,2022-02-01,febrero,2022,2,1520775
+Total Canarias,2022-03-01,marzo,2022,3,1777180
+Total Canarias,2022-04-01,abril,2022,4,1831428
+Total Canarias,2022-05-01,mayo,2022,5,1611236
+Total Canarias,2022-06-01,junio,2022,6,1690460
+Total Canarias,2022-07-01,julio,2022,7,1955986
+Total Canarias,2022-08-01,agosto,2022,8,1940286
+Total Canarias,2022-09-01,septiembre,2022,9,1713248
+Total Canarias,2022-10-01,octubre,2022,10,2015580
+Total Canarias,2022-11-01,noviembre,2022,11,1945604
+Total Canarias,2022-12-01,diciembre,2022,12,2110045
+Total Canarias,2023-01-01,enero,2023,1,1899097
+Total Canarias,2023-02-01,febrero,2023,2,1907273
+Total Canarias,2023-03-01,marzo,2023,3,2074654
+Total Canarias,2023-04-01,abril,2023,4,1950607
+Total Canarias,2023-05-01,mayo,2023,5,1772338
+Total Canarias,2023-06-01,junio,2023,6,1785800
+Total Canarias,2023-07-01,julio,2023,7,2047699
+Total Canarias,2023-08-01,agosto,2023,8,1994198
+Total Canarias,2023-09-01,septiembre,2023,9,1861996
+Total Canarias,2023-10-01,octubre,2023,10,2137051
+Total Canarias,2023-11-01,noviembre,2023,11,2099619
+Total Canarias,2023-12-01,diciembre,2023,12,2272734
+Total Canarias,2024-01-01,enero,2024,1,2063542
+Total Canarias,2024-02-01,febrero,2024,2,2174856
+Total Canarias,2024-03-01,marzo,2024,3,2416481
+Total Canarias,2024-04-01,abril,2024,4,2009663
+Total Canarias,2024-05-01,mayo,2024,5,1924628
+Total Canarias,2024-06-01,junio,2024,6,1989492
+Total Canarias,2024-07-01,julio,2024,7,2182178
+Total Canarias,2024-08-01,agosto,2024,8,2179842
+Total Canarias,2024-09-01,septiembre,2024,9,2009806
+Total Canarias,2024-10-01,octubre,2024,10,2285857
+Total Canarias,2024-11-01,noviembre,2024,11,2333838
+Total Canarias,2024-12-01,diciembre,2024,12,2439631
+Total Canarias,2025-01-01,enero,2025,1,2200971
+Total Canarias,2025-02-01,febrero,2025,2,2231870
+Total Canarias,2025-03-01,marzo,2025,3,2439527
+Total Canarias,2025-04-01,abril,2025,4,2229428
+Total Canarias,2025-05-01,mayo,2025,5,2016749
+Total Canarias,2025-06-01,junio,2025,6,2081654
+Total Canarias,2025-07-01,julio,2025,7,2320307

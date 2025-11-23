@@ -74,7 +74,8 @@ for next_date in future_dates:
     new_row["month_sin"] = np.sin(2 * np.pi * m / 12)
     new_row["month_cos"] = np.cos(2 * np.pi * m / 12)
     new_row["month_idx"] = len(df_future)
-    min_year = df["Año"].min()
+    min_year = df[DATE_COL].dt.year.min()
+
     new_row["year_norm"] = (next_date.year - min_year) + 1
 
     # --- lags: desde los últimos meses en df_future
@@ -120,6 +121,6 @@ plt.show()
 # 📁 Guardar resultados
 # ==============================================================
 df_future.to_csv("forecast_total_canarias_xgb.csv", index=False, encoding="utf-8-sig")
-print("💾 Guardado forecast_total_canarias_xgb.csv")
+print("💾 Guardado forecast_total_canarias_fixedlags.csv")
 
 print("\n📈 Últimos 12 meses del pronóstico:")
