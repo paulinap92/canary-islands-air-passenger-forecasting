@@ -24,11 +24,21 @@ def calculate_kpi_full(df_full, selected_island):
     year = last_date.year
     month = last_date.month
 
-    df_last = df[(df["Fecha"].dt.year == year) & (df["Fecha"].dt.month == month)]
-    last_month_total = df_last["Pasajeros"]
+    df_last = df[
+        (df["AEROPUERTO_DE_PROCEDENCIA"].str.upper() == "TOTAL PASAJEROS") &
+        (df["Fecha"].dt.year == year) &
+        (df["Fecha"].dt.month == month)
+        ]
 
-    df_prev = df[(df["Fecha"].dt.year == year - 1) & (df["Fecha"].dt.month == month)]
-    prev_month_total = df_prev["Pasajeros"] if not df_prev.empty else None
+    last_month_total = df_last["Pasajeros"].iloc[0] if not df_last.empty else None
+
+    df_prev = df[
+        (df["AEROPUERTO_DE_PROCEDENCIA"].str.upper() == "TOTAL PASAJEROS") &
+        (df["Fecha"].dt.year == year - 1) &
+        (df["Fecha"].dt.month == month)
+        ]
+
+    prev_month_total = df_prev["Pasajeros"].iloc[0] if not df_prev.empty else None
 
     if prev_month_total and prev_month_total > 0:
         yoy_month_pct = ((last_month_total - prev_month_total) / prev_month_total) * 100
