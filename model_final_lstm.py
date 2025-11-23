@@ -115,7 +115,7 @@ plt.show()
 # --------------------------------------------------------------
 # 7️⃣ GUARDAR RESULTADOS
 # --------------------------------------------------------------
-out_file = "forecast_total_canarias_LSTM.csv"
+out_file = "forecast_total_canarias_lstm.csv"
 df_future.to_csv(out_file, index=False, encoding="utf-8-sig")
 print(f"💾 Guardado {out_file}")
 
