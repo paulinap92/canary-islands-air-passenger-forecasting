@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Environments
+.venv/
+env/
+.virtualenvs/
+
+# IDE
+.idea/
+.vscode/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Data outputs / backups
+backup_results/
+result*.csv
+forecast*.csv
+
+# OS
+.DS_Store
+Thumbs.db

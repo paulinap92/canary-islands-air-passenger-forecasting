@@ -27,7 +27,7 @@ df_xgb, df_lstm = load_forecasts()
 # --------------------------------------------------
 # MAP + IMAGE
 # --------------------------------------------------
-col_map, col_img = st.columns([2, 1])
+col_map, col_img = st.columns([2, 1],vertical_alignment="top")
 
 with col_map:
     selected_island = draw_island_map()

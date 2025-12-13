@@ -18,7 +18,7 @@ def draw_island_map():
             icon=folium.Icon(color="blue", icon="plane", prefix="fa"),
         ).add_to(m)
 
-    result = st_folium(m, key="map", width=800, height=520)
+    result = st_folium(m, key="map", width=800, height=600)
     clicked_popup = result.get("last_object_clicked_popup") if result else None
 
     if clicked_popup:
