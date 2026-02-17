@@ -166,6 +166,8 @@ def process_new_excel(file_path, results_details, results_total, nrows=40):
 
     for isla, dfi in df_islas.items():
         dfi["Isla"] = isla.title()
+        cols = dfi.columns
+        dfi.columns = [cols[0]]+cols[1:].str.lower().tolist()
 
         if target_col not in dfi.columns:
             print(f"⚠️ Falta la columna '{target_col}' en los datos de {isla}")
