@@ -63,8 +63,8 @@ def display_tabs(dfv: pd.DataFrame, df_full: pd.DataFrame, df_xgb, df_lstm, sele
                 .sort_values("Año")
             )
             monthly = (
-                df_total[["Año", "Mes", "Pasajeros"]]
-                .sort_values(["Año", "Mes"])
+                df_total[["Año", "MesNum", "Pasajeros"]]
+                .sort_values(["Año", "MesNum"])
             )
 
             col1, col2 = st.columns(2)
