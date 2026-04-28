@@ -18,6 +18,7 @@ plotly = "*"
 numpy = "*"
 matplotlib = "*"
 pandas-stubs = "~=2.3.3"
+ipykernel = "*"
 
 [dev-packages]
 
