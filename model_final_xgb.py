@@ -1,126 +1,147 @@
-# ==============================================================
-# 🧭 Pronóstico final XGBoost — generación corregida de lags
-# ==============================================================
+"""Generate an XGBoost forecast using the persisted production model.
 
-import pandas as pd
+This module performs inference only. Model training is intentionally isolated in
+``training/retrain_models.py`` and must not run during monthly data updates.
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+import joblib
 import numpy as np
-import matplotlib.pyplot as plt
-from xgboost import XGBRegressor
-from sklearn.pipeline import Pipeline
-from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import StandardScaler
-from sklearn.compose import TransformedTargetRegressor
+import pandas as pd
 
-# === PARÁMETROS ===
 ISLAND_NAME = "Total Canarias"
 TARGET_COL = "Pasajeros"
 DATE_COL = "Fecha"
-HORIZON_END = "2026-12-01"
 
-# === Datos de entrada ===
-df = pd.read_csv("result_total_with_lags_coded.csv", encoding="utf-8-sig")
-df[DATE_COL] = pd.to_datetime(df[DATE_COL])
-df = df.sort_values(DATE_COL)
-df = df[df["Isla"] == ISLAND_NAME].reset_index(drop=True)
+DATA_PATH = Path("result_total_with_lags_coded.csv")
+MODEL_PATH = Path("models/xgb_best.pkl")
+OUTPUT_PATH = Path("forecast_total_canarias_xgb.csv")
+FORECAST_HORIZON_MONTHS = int(os.getenv("FORECAST_HORIZON_MONTHS", "12"))
 
-# 🔹 Tendencia a largo plazo
-df["month_idx"] = np.arange(len(df))
-
-# 🔹 Características para el modelo
 FEATURES = [
-    "month_idx", "month_sin", "month_cos", "year_norm",
+    "month_sin",
+    "month_cos",
+    "year_norm",
     *[f"lag_{i}" for i in range(1, 13)],
-    "roll3", "roll6"
+    "roll3",
+    "roll6",
 ]
 
-X_train = df[FEATURES].values
-y_train = df[TARGET_COL].values
-print(y_train)
 
-# 🔹 Modelo XGB
-xgb = Pipeline([
-    ("imputer", SimpleImputer(strategy="median")),
-    ("model", XGBRegressor(
-        n_estimators=800,
-        learning_rate=0.03,
-        max_depth=5,
-        subsample=0.9,
-        colsample_bytree=0.9,
-        objective="reg:squarederror",
-        random_state=42
-    ))
-])
+def load_history(data_path: Path = DATA_PATH) -> pd.DataFrame:
+    """Load validated historical data for Total Canarias."""
+    if not data_path.exists():
+        raise FileNotFoundError(
+            f"Missing {data_path}. Run download_agent.build_features() first."
+        )
 
-model = TransformedTargetRegressor(regressor=xgb, transformer=StandardScaler())
-model.fit(X_train, y_train)
-print("✅ Modelo entrenado con datos históricos")
+    df = pd.read_csv(data_path, encoding="utf-8-sig")
+    required = {DATE_COL, TARGET_COL, "Isla", *FEATURES}
+    missing = sorted(required.difference(df.columns))
+    if missing:
+        raise KeyError(f"Missing columns in {data_path}: {missing}")
 
-# ==============================================================
-# Pronóstico iterativo — lags corregidos
-# ==============================================================
-df_future = df.copy()
-last_date = df_future[DATE_COL].max()
-future_dates = pd.period_range(last_date, HORIZON_END, freq="M")[1:].to_timestamp()
+    df[DATE_COL] = pd.to_datetime(df[DATE_COL], errors="coerce")
+    df[TARGET_COL] = pd.to_numeric(df[TARGET_COL], errors="coerce")
+    df = (
+        df[df["Isla"] == ISLAND_NAME]
+        .dropna(subset=[DATE_COL, TARGET_COL])
+        .sort_values(DATE_COL)
+        .reset_index(drop=True)
+    )
 
-print(f"📈 Pronosticando desde {last_date.date()} hasta {future_dates[-1].date()}")
+    if len(df) < 12:
+        raise ValueError("At least 12 historical months are required for forecasting.")
 
-for next_date in future_dates:
-    new_row = {}
+    return df
 
-    # --- características de calendario
-    new_row[DATE_COL] = next_date
-    new_row["Isla"] = ISLAND_NAME
-    m = next_date.month
-    new_row["month_sin"] = np.sin(2 * np.pi * m / 12)
-    new_row["month_cos"] = np.cos(2 * np.pi * m / 12)
-    new_row["month_idx"] = len(df_future)
-    min_year = df[DATE_COL].dt.year.min()
 
-    new_row["year_norm"] = (next_date.year - min_year) + 1
+def generate_forecast(
+    horizon_months: int = FORECAST_HORIZON_MONTHS,
+    data_path: Path = DATA_PATH,
+    model_path: Path = MODEL_PATH,
+) -> pd.DataFrame:
+    """Generate an iterative monthly forecast without retraining the model."""
+    if horizon_months < 1:
+        raise ValueError("horizon_months must be at least 1.")
+    if not model_path.exists():
+        raise FileNotFoundError(
+            f"Missing production model {model_path}. "
+            "Run training/retrain_models.py explicitly when retraining is required."
+        )
 
-    # --- lags: desde los últimos meses en df_future
-    for i in range(1, 13):
-        if len(df_future) >= i:
-            new_row[f"lag_{i}"] = df_future[TARGET_COL].iloc[-i]
-        else:
-            new_row[f"lag_{i}"] = np.nan
+    df = load_history(data_path)
+    model = joblib.load(model_path)
 
-    # --- rollings
-    last_vals = df_future[TARGET_COL].tail(6).values
-    new_row["roll3"] = np.mean(last_vals[-3:]) if len(last_vals) >= 3 else np.nan
-    new_row["roll6"] = np.mean(last_vals[-6:]) if len(last_vals) >= 6 else np.nan
+    expected_features = getattr(model, "n_features_in_", None)
+    if expected_features is not None and expected_features != len(FEATURES):
+        raise ValueError(
+            "The saved XGBoost model expects "
+            f"{expected_features} features, but inference provides {len(FEATURES)}. "
+            "Retrain the model with training/retrain_models.py."
+        )
 
-    X_pred = np.array([[new_row.get(f, np.nan) for f in FEATURES]])
-    y_pred = model.predict(X_pred)[0]
+    df_future = df.copy()
+    last_real_date = df_future[DATE_COL].max()
+    future_dates = pd.date_range(
+        start=last_real_date + pd.offsets.MonthBegin(1),
+        periods=horizon_months,
+        freq="MS",
+    )
+    base_year = int(df[DATE_COL].dt.year.min())
 
-    # --- sin valores negativos
-    y_pred = max(y_pred, 0)
-    new_row[TARGET_COL] = y_pred
+    for next_date in future_dates:
+        new_row = df_future.iloc[-1].copy()
+        new_row[DATE_COL] = next_date
+        new_row["Isla"] = ISLAND_NAME
 
-    df_future = pd.concat([df_future, pd.DataFrame([new_row])], ignore_index=True)
+        month = next_date.month
+        new_row["month_sin"] = np.sin(2 * np.pi * month / 12.0)
+        new_row["month_cos"] = np.cos(2 * np.pi * month / 12.0)
+        new_row["year_norm"] = (next_date.year - base_year) + 1
 
-df_future["Phase"] = np.where(df_future[DATE_COL] <= last_date, "History", "Forecast")
+        for lag in range(1, 13):
+            new_row[f"lag_{lag}"] = df_future[TARGET_COL].iloc[-lag]
 
-# ==============================================================
-# 📊 Gráfico
-# ==============================================================
-plt.figure(figsize=(10,5))
-plt.plot(df_future[df_future["Phase"]=="History"][DATE_COL],
-         df_future[df_future["Phase"]=="History"][TARGET_COL],
-         label="Historia", color="tab:blue")
-plt.plot(df_future[df_future["Phase"]=="Forecast"][DATE_COL],
-         df_future[df_future["Phase"]=="Forecast"][TARGET_COL],
-         label="Pronóstico XGB (lags corregidos)", color="tab:orange")
-plt.title("✈️ Total Canarias — Pronóstico XGB hasta 2026 (versión corregida)")
-plt.grid(True, alpha=0.3)
-plt.legend()
-plt.tight_layout()
-plt.show()
+        recent_values = df_future[TARGET_COL].tail(6).to_numpy(dtype=float)
+        new_row["roll3"] = float(np.mean(recent_values[-3:]))
+        new_row["roll6"] = float(np.mean(recent_values[-6:]))
 
-# ==============================================================
-# 📁 Guardar resultados
-# ==============================================================
-df_future.to_csv("forecast_total_canarias_xgb.csv", index=False, encoding="utf-8-sig")
-print("💾 Guardado forecast_total_canarias_fixedlags.csv")
+        x_pred = np.asarray(
+            [[float(new_row[feature]) for feature in FEATURES]],
+            dtype=float,
+        )
+        prediction = float(model.predict(x_pred)[0])
+        new_row[TARGET_COL] = max(prediction, 0.0)
 
-print("\n📈 Últimos 12 meses del pronóstico:")
+        df_future = pd.concat(
+            [df_future, pd.DataFrame([new_row])],
+            ignore_index=True,
+        )
+
+    df_future["Phase"] = np.where(
+        df_future[DATE_COL] <= last_real_date,
+        "History",
+        "Forecast",
+    )
+    return df_future
+
+
+def main() -> None:
+    """Generate and persist the production XGBoost forecast."""
+    forecast = generate_forecast()
+    forecast.to_csv(OUTPUT_PATH, index=False, encoding="utf-8-sig")
+
+    forecast_rows = forecast[forecast["Phase"] == "Forecast"]
+    print(
+        f"Saved {len(forecast_rows)} XGBoost forecast months to {OUTPUT_PATH} "
+        f"(last real month: {forecast[forecast['Phase'] == 'History'][DATE_COL].max().date()})."
+    )
+
+
+if __name__ == "__main__":
+    main()
