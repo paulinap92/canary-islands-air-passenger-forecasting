@@ -1,183 +1,138 @@
 # ✈️ Canary Islands Air Passenger Forecasting Dashboard
 
-![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python)
-![Pandas](https://img.shields.io/badge/Pandas-150458?logo=pandas)
-![scikit-learn](https://img.shields.io/badge/scikit--learn-F7931E?logo=scikitlearn)
-![XGBoost](https://img.shields.io/badge/XGBoost-EC0000)
-![Keras](https://img.shields.io/badge/Keras-D00000?logo=keras)
-![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit)
-![Plotly](https://img.shields.io/badge/Plotly-3F4F75?logo=plotly)
-![Folium](https://img.shields.io/badge/Folium-77B829)
+Interactive Streamlit dashboard for analysis and forecasting of air passenger traffic in the Canary Islands using official WebTenerife data.
 
-Interactive Streamlit dashboard for **analysis and forecasting of air passenger traffic** in the Canary Islands, based on **real, official tourism data**.
+## Project overview
 
----
+The project combines:
 
----
+- monthly ingestion of official passenger data,
+- historical analysis and visualisation,
+- feature engineering for monthly time series,
+- XGBoost and LSTM forecasting,
+- persisted production models,
+- a Streamlit dashboard.
 
-## 📌 Project Overview
+## Model development lifecycle
 
-This project analyses historical air passenger traffic for the Canary Islands and forecasts future demand using machine learning and deep learning models.
+### 1. Initial model selection and first training
 
-Key goals:
-- understand long-term trends and seasonality,
-- build stable forecasting models,
-- automatically update data and results,
-- present insights in an interactive dashboard.
+`notebooks/my_models_trials.ipynb` documents the original experimental phase of the project. It was used to:
 
-A broad experimental phase was conducted with multiple models and neural networks.  
-After evaluation, **two stable models** were selected as final.
+- compare classical regression models,
+- run time-series validation and holdout evaluation,
+- test XGBoost, LSTM, GRU, and Transformer variants,
+- select the final XGBoost and LSTM approaches,
+- create the first persisted production artifacts.
 
----
+This notebook is an **initial model-selection and training record**. It is not intended to run during every monthly data update.
 
-## 🧠 Models
+### 2. Monthly update without retraining
 
-- **XGBoost**
-  - lag features (historical passenger values),
-  - explicit seasonality encoding,
-  - robust performance on tabular time-series data.
+Run:
 
-- **LSTM (Keras)**
-  - long-term temporal dependencies,
-  - complementary deep-learning approach.
+```bash
+python monthly_update.py
+```
 
-Evaluation metrics:
-- MAE
-- RMSE
-- MAPE
+This workflow:
 
----
+1. downloads and processes the next available monthly XLSX file,
+2. updates the historical CSV datasets,
+3. rebuilds lag and rolling-window features,
+4. loads the existing persisted XGBoost and LSTM models,
+5. generates a fresh 12-month forecast.
 
-## 🧪 Model Training & Experiments
+It does **not** retrain either model.
 
-The final forecasting models used in the dashboard were obtained after an extensive experimental and training phase.
+### 3. Explicit retraining
 
-During development, multiple approaches, feature sets and neural network architectures were tested.  
-The following files document the **training, experimentation and model selection process**:
+Run retraining separately:
 
-### Training & experiments
+```bash
+python training/retrain_models.py
+```
 
-- **`prepare_data_for_model.ipynb`**  
-  Data preparation and feature engineering notebook.  
-  Includes aggregation of passenger data, creation of lag features, seasonality encoding and datasets used for model training.
+The retraining workflow creates a new model candidate and reports validation metrics. It does not silently replace the production model. The candidate should be reviewed before promotion.
 
-- **`my_models_trials.ipynb`**  
-  Experimental notebook with multiple model trials and configurations, used to compare approaches before selecting the final models.
+The current extracted retraining script covers XGBoost. The original LSTM training and architecture comparison remain documented in `notebooks/my_models_trials.ipynb` and should be extracted into a dedicated training module before LSTM retraining is automated.
 
-- **`data_processing.ipynb`**  
-  Initial data exploration, cleaning and validation of raw XLSX files.
+## Production inference
 
-### Final training scripts
+- `model_final_xgb.py` loads `models/xgb_best.pkl` and performs inference only.
+- `model_final_lstm.py` loads `models/lstm_best.h5` and `models/scaler_y.pkl` and performs inference only.
 
-- **`model_final_xgb.py`**  
-  Training script for the final **XGBoost model** (lags + seasonality) with model persistence.
+The forecasting horizon is relative to the latest historical month rather than fixed to a calendar date.
 
-- **`model_final_lstm.py`**  
-  Training script for the final **LSTM (Keras) model** (sequence input) with model persistence.
-
-### Trained model artifacts
-
-- **`models/xgb_best.pkl`** – final trained XGBoost model  
-- **`models/lstm_best.h5`** – final trained LSTM model  
-- **`models/scaler_y.pkl`** – target scaler used during training and inference  
-
-Only the **final, stable models** are loaded by the Streamlit application.  
-Intermediate experiments and notebooks are kept for transparency and reproducibility.
-
----
-
-## 📊 Data Source
-
-All data used in this project is **real and official**.
-
-**Source:**  
-WebTenerife – Air Traffic Statistics  
-https://www.webtenerife.com/investigacion/situacion-turistica/trafico-aereo/
-
----
-
-## 🔄 Data Download Agent
-
-The project includes a **download agent** that:
-- retrieves newly published air passenger data,
-- validates and preprocesses it,
-- updates datasets used by the dashboard.
-
-After running the agent, the dashboard automatically reflects updated data.
-
----
-
-## 📂 Project Structure (from repository)
+## Model artifacts
 
 ```text
-canarias_dashboard/
-├── main.py
-├── config.py
-├── download_agent.py
-├── model_final_lstm.py
-├── model_final_xgb.py
-├── requirements.txt
-├── Pipfile
-├── Pipfile.lock
-├── forecast_total_canarias_lstm.csv
-├── forecast_total_canarias_xgb.csv
-├── result.csv
-├── result_total.csv
-├── result_total_with_lags.csv
-├── result_total_with_lags_coded.csv
-│
-├── .streamlit/
-│   └── config.toml
-│
-├── charts/
-│   ├── heatmap.py
-│   ├── origins.py
-│   └── trends.py
-│
-├── forecast/
-│   └── forecast_plot.py
-│
-├── kpi/
-│   └── kpi_calculator.py
-│
-├── ui/
-│   ├── images.py
-│   ├── map.py
-│   └── tabs.py
-│
-├── models/
-│   ├── lstm_best.h5
-│   ├── scaler_y.pkl
-│   └── xgb_best.pkl
-│
-├── data/
-│   ├── *.xlsx
-│   └── loader.py
-│
-├── backup_results/
-│   └── *.csv
-│
-└── notebooks/
-    ├── data_processing.ipynb
-    ├── my_models_trials.ipynb
-    └── prepare_data_for_model.ipynb
+models/
+├── xgb_best.pkl
+├── lstm_best.h5
+└── scaler_y.pkl
 ```
 
+Retraining creates candidate artifacts first, for example:
 
----
+```text
+models/xgb_candidate.pkl
+```
 
-## ▶️ How to Run (Pipenv)
+## Data pipeline
 
-### 1️⃣ Install dependencies
+```text
+new monthly XLSX
+        ↓
+download_agent.py
+        ↓
+result.csv + result_total.csv
+        ↓
+build_features()
+        ↓
+lag/rolling feature datasets
+        ↓
+model inference
+        ↓
+forecast CSV files
+        ↓
+Streamlit dashboard
+```
+
+## Project structure
+
+```text
+├── main.py
+├── monthly_update.py
+├── download_agent.py
+├── model_final_xgb.py
+├── model_final_lstm.py
+├── training/
+│   └── retrain_models.py
+├── notebooks/
+│   ├── README.md
+│   ├── my_models_trials.ipynb
+│   ├── prepare_data_for_model.ipynb
+│   └── data_processing.ipynb
+├── models/
+├── data/
+├── charts/
+├── forecast/
+├── kpi/
+└── ui/
+```
+
+## Data source
+
+WebTenerife — Air Traffic Statistics.
+
+## Run the dashboard
+
 ```bash
 pipenv install
+streamlit run main.py
 ```
 
-### 2️⃣ Run Streamlit dashboard
-```bash
- streamlit run main.py
-```
-
-## 📄 License
+## License
 
 Educational and analytical use.
