@@ -1,105 +1,158 @@
-"""Forecast tab: show historical + XGB + LSTM predictions."""
+"""Forecast tab with one actual series and future model forecasts."""
 
-import streamlit as st
-import plotly.graph_objects as go
+from __future__ import annotations
+
 import pandas as pd
+import plotly.graph_objects as go
+import streamlit as st
 
-def plot_forecast_tab(df_full: pd.DataFrame, df_xgb: pd.DataFrame, df_lstm: pd.DataFrame):
-    """Render forecast tab: historical Total Canarias + XGB + LSTM."""
-    st.subheader("🔮 Predicción — Histórico + XGB + LSTM (Total Canarias)")
+DATE_COL = "Fecha"
+TARGET_COL = "Pasajeros"
+PHASE_COL = "Phase"
+
+
+def _prepare_forecast_frame(df: pd.DataFrame, model_name: str) -> pd.DataFrame:
+    """Validate and normalize one model forecast frame."""
+    required = {DATE_COL, TARGET_COL}
+    missing = sorted(required.difference(df.columns))
+    if missing:
+        raise KeyError(f"{model_name}: missing columns {missing}")
+
+    result = df.copy()
+    result[DATE_COL] = pd.to_datetime(result[DATE_COL], errors="coerce")
+    result[TARGET_COL] = pd.to_numeric(result[TARGET_COL], errors="coerce")
+    result = result.dropna(subset=[DATE_COL, TARGET_COL]).sort_values(DATE_COL)
+
+    if PHASE_COL not in result.columns:
+        raise KeyError(f"{model_name}: missing '{PHASE_COL}' column")
+
+    return result
+
+
+def plot_forecast_tab(
+    df_full: pd.DataFrame,
+    df_xgb: pd.DataFrame,
+    df_lstm: pd.DataFrame,
+) -> None:
+    """Render actual history and future XGBoost/LSTM forecasts."""
+    st.subheader("🔮 Pronóstico — datos reales y próximos 12 meses")
 
     if df_xgb is None or df_lstm is None:
         st.warning("⚠️ No se pudieron cargar las predicciones.")
         return
 
-    # Historical data for TOTAL PASAJEROS (all islands)
     df_hist = df_full[
         df_full["AEROPUERTO_DE_PROCEDENCIA"].str.upper() == "TOTAL PASAJEROS"
     ].copy()
+    df_hist[DATE_COL] = pd.to_datetime(df_hist[DATE_COL], errors="coerce")
+    df_hist[TARGET_COL] = pd.to_numeric(df_hist[TARGET_COL], errors="coerce")
+    df_hist = (
+        df_hist.dropna(subset=[DATE_COL, TARGET_COL])
+        .groupby(DATE_COL, as_index=False)[TARGET_COL]
+        .sum()
+        .sort_values(DATE_COL)
+    )
 
     if df_hist.empty:
         st.warning("No hay datos históricos de 'TOTAL PASAJEROS'.")
         return
 
-    last_real_date = df_hist["Fecha"].max()
+    try:
+        xgb = _prepare_forecast_frame(df_xgb, "XGBoost")
+        lstm = _prepare_forecast_frame(df_lstm, "LSTM")
+    except (KeyError, ValueError) as exc:
+        st.warning(f"⚠️ Predicciones inválidas: {exc}")
+        return
 
-    xgb_real = df_xgb[df_xgb["Fecha"] <= last_real_date]
-    xgb_pred = df_xgb[df_xgb["Fecha"] > last_real_date]
+    last_real_date = df_hist[DATE_COL].max()
+    xgb_future = xgb[
+        (xgb[PHASE_COL] == "Forecast") & (xgb[DATE_COL] > last_real_date)
+    ].copy()
+    lstm_future = lstm[
+        (lstm[PHASE_COL] == "Forecast") & (lstm[DATE_COL] > last_real_date)
+    ].copy()
 
-    lstm_real = df_lstm[df_lstm["Fecha"] <= last_real_date]
-    lstm_pred = df_lstm[df_lstm["Fecha"] > last_real_date]
-
-    model_choice = st.radio("Modelo", ["XGB", "LSTM", "Ambos"], horizontal=True)
+    model_choice = st.radio(
+        "Modelo",
+        ["XGB", "LSTM", "Ambos"],
+        horizontal=True,
+    )
 
     fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=df_hist[DATE_COL],
+            y=df_hist[TARGET_COL],
+            name="Datos reales",
+            mode="lines",
+            line=dict(width=3),
+        )
+    )
 
-    # XGB traces
-    if model_choice in ["XGB", "Ambos"]:
-        fig.add_trace(go.Scatter(
-            x=xgb_real["Fecha"],
-            y=xgb_real["Pasajeros"],
-            name="XGB (ajuste)",
-            line=dict(color="orange", width=3),
-        ))
-        fig.add_trace(go.Scatter(
-            x=xgb_pred["Fecha"],
-            y=xgb_pred["Pasajeros"],
-            name="XGB (predicción)",
-            line=dict(color="orange", width=3, dash="dash"),
-        ))
+    if model_choice in {"XGB", "Ambos"}:
+        fig.add_trace(
+            go.Scatter(
+                x=xgb_future[DATE_COL],
+                y=xgb_future[TARGET_COL],
+                name="XGB — pronóstico",
+                mode="lines+markers",
+                line=dict(width=3, dash="dash"),
+            )
+        )
 
-    # LSTM traces
-    if model_choice in ["LSTM", "Ambos"]:
-        fig.add_trace(go.Scatter(
-            x=lstm_real["Fecha"],
-            y=lstm_real["Pasajeros"],
-            name="LSTM (ajuste)",
-            line=dict(color="green", width=3),
-        ))
-        fig.add_trace(go.Scatter(
-            x=lstm_pred["Fecha"],
-            y=lstm_pred["Pasajeros"],
-            name="LSTM (predicción)",
-            line=dict(color="green", width=3, dash="dot"),
-        ))
+    if model_choice in {"LSTM", "Ambos"}:
+        fig.add_trace(
+            go.Scatter(
+                x=lstm_future[DATE_COL],
+                y=lstm_future[TARGET_COL],
+                name="LSTM — pronóstico",
+                mode="lines+markers",
+                line=dict(width=3, dash="dot"),
+            )
+        )
+
+    fig.add_vline(
+        x=last_real_date,
+        line_dash="dash",
+        annotation_text="Inicio del pronóstico",
+        annotation_position="top left",
+    )
 
     fig.update_layout(
         height=500,
         template="simple_white",
         xaxis_title="Fecha",
         yaxis_title="Pasajeros",
-        margin=dict(l=20, r=20, t=40, b=20),
+        margin=dict(l=20, r=20, t=50, b=20),
+        legend_title_text="Serie",
+        hovermode="x unified",
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # --------------------------------------------------------
-    # 📋 CLEAN TABLE (NO MERGE, NO GARBAGE)
-    # --------------------------------------------------------
-    with st.expander("📋 Ver datos"):
+    st.caption(
+        "Las líneas de XGB y LSTM muestran únicamente predicciones futuras. "
+        "La historia corresponde a datos reales, no a valores ajustados por los modelos."
+    )
 
-        # Clean XGB display
-        xgb_display = df_xgb[["Fecha", "Pasajeros", "Phase"]].copy()
-        xgb_display["Fecha"] = xgb_display["Fecha"].dt.to_period("M").astype(str)
-        xgb_display = xgb_display.sort_values("Fecha")
+    with st.expander("📋 Ver predicciones futuras"):
+        tables = []
+        if model_choice in {"XGB", "Ambos"}:
+            xgb_display = xgb_future[[DATE_COL, TARGET_COL]].copy()
+            xgb_display["Modelo"] = "XGB"
+            tables.append(xgb_display)
+        if model_choice in {"LSTM", "Ambos"}:
+            lstm_display = lstm_future[[DATE_COL, TARGET_COL]].copy()
+            lstm_display["Modelo"] = "LSTM"
+            tables.append(lstm_display)
 
-        # Clean LSTM display
-        lstm_display = df_lstm[["Fecha", "Pasajeros", "Phase"]].copy()
-        lstm_display["Fecha"] = lstm_display["Fecha"].dt.to_period("M").astype(str)
-        lstm_display = lstm_display.sort_values("Fecha")
+        if not tables:
+            st.info("No hay predicciones futuras disponibles.")
+            return
 
-        # ------------------------------------
-        if model_choice == "XGB":
-            st.markdown("### 🔸 Datos — XGB")
-            st.dataframe(xgb_display, use_container_width=True)
-
-        elif model_choice == "LSTM":
-            st.markdown("### 🟢 Datos — LSTM")
-            st.dataframe(lstm_display, use_container_width=True)
-
-        else:  # Ambos
-            st.markdown("### 🔸 Datos — XGB")
-            st.dataframe(xgb_display, use_container_width=True)
-            st.markdown("### 🟢 Datos — LSTM")
-            st.dataframe(lstm_display, use_container_width=True)
-
-
+        display = pd.concat(tables, ignore_index=True)
+        display[DATE_COL] = display[DATE_COL].dt.to_period("M").astype(str)
+        display = display.rename(
+            columns={DATE_COL: "Mes", TARGET_COL: "Pasajeros previstos"}
+        )
+        display = display[["Mes", "Modelo", "Pasajeros previstos"]]
+        st.dataframe(display, use_container_width=True)
