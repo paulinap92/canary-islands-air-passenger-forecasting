@@ -18,5 +18,8 @@ The notebook is **not part of the monthly production update** and should not be 
 ## Production lifecycle
 
 - `monthly_update.py` updates data, rebuilds features, and generates forecasts with existing production models.
-- `training/retrain_models.py` is the explicit retraining entry point for new model candidates.
-- A candidate model should replace the production model only after its validation metrics have been reviewed.
+- `training/retrain_models.py` trains an explicit XGBoost candidate.
+- `training/train_lstm.py` trains an explicit LSTM candidate using the selected architecture extracted from this notebook.
+- Candidate artifacts remain separate from production artifacts until their validation metrics have been reviewed.
+
+The initial architecture search stays in the notebook for transparency. Routine retraining does not repeat the full LSTM/GRU/Transformer comparison unless a new model-selection experiment is intentionally started.
