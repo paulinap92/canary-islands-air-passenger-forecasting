@@ -1,123 +1,176 @@
-# ==============================================================
-# 🧠 Pronóstico final LSTM (con memoria secuencial, sin lags)
-# ==============================================================
+"""Generate an LSTM forecast using persisted production artifacts.
+
+This module performs inference only. LSTM retraining is isolated in
+``training/train_lstm.py`` and must not run during monthly data updates.
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+import joblib
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import joblib
 from tensorflow.keras.models import load_model
 
-# --------------------------------------------------------------
-# 1️⃣ PARÁMETROS
-# --------------------------------------------------------------
 ISLAND_NAME = "Total Canarias"
 TARGET_COL = "Pasajeros"
 DATE_COL = "Fecha"
-HORIZON_END = "2026-12-01"
-WIN = 12  # número de meses en la memoria (ventana de secuencia)
 
-# --------------------------------------------------------------
-# 2️⃣ CARGA DE DATOS Y DEL MODELO
-# --------------------------------------------------------------
-df = pd.read_csv("result_total.csv", encoding="utf-8-sig")
-df = df[df["Isla"] == ISLAND_NAME].copy()
-df[DATE_COL] = pd.to_datetime(df[DATE_COL])
-df = df.sort_values(DATE_COL).reset_index(drop=True)
+DATA_PATH = Path("result_total.csv")
+MODEL_PATH = Path("models/lstm_best.h5")
+SCALER_PATH = Path("models/scaler_y.pkl")
+OUTPUT_PATH = Path("forecast_total_canarias_lstm.csv")
 
-# Características de calendario
-if "month_sin" not in df.columns or "month_cos" not in df.columns:
-    df["month_sin"] = np.sin(2 * np.pi * df[DATE_COL].dt.month / 12)
-    df["month_cos"] = np.cos(2 * np.pi * df[DATE_COL].dt.month / 12)
+WINDOW_SIZE = 12
+FORECAST_HORIZON_MONTHS = int(os.getenv("FORECAST_HORIZON_MONTHS", "12"))
+FEATURE_COLUMNS = ["_x_pasaj", "month_sin", "month_cos", "year_norm"]
 
-if "year_norm" not in df.columns:
-    base_year = df[DATE_COL].dt.year.min()
-    df["year_norm"] = (df[DATE_COL].dt.year - base_year).astype(float) + 1.0
 
-# ✅ Cargar modelo SIN compilación
-model = load_model("models/lstm_best.h5", compile=False)
-scaler_y = joblib.load("models/scaler_y.pkl")
+def load_history(data_path: Path = DATA_PATH) -> pd.DataFrame:
+    """Load and prepare historical data exactly as required by the LSTM."""
+    if not data_path.exists():
+        raise FileNotFoundError(f"Missing historical dataset: {data_path}")
 
-# --------------------------------------------------------------
-# 3️⃣ ESCALADO Y CREACIÓN DE LA SECUENCIA INICIAL
-# --------------------------------------------------------------
-# solo escalamos el target
-y_scaled = scaler_y.transform(df[[TARGET_COL]])
+    df = pd.read_csv(data_path, encoding="utf-8-sig")
+    required = {"Isla", DATE_COL, TARGET_COL}
+    missing = sorted(required.difference(df.columns))
+    if missing:
+        raise KeyError(f"Missing columns in {data_path}: {missing}")
 
-# añadimos el target escalado como característica
-df["_x_pasaj"] = y_scaled
-FEAT_COLS = ["_x_pasaj", "month_sin", "month_cos", "year_norm"]
-X_all = df[FEAT_COLS].to_numpy()
+    df[DATE_COL] = pd.to_datetime(df[DATE_COL], errors="coerce")
+    df[TARGET_COL] = pd.to_numeric(df[TARGET_COL], errors="coerce")
+    df = (
+        df[df["Isla"] == ISLAND_NAME]
+        .dropna(subset=[DATE_COL, TARGET_COL])
+        .sort_values(DATE_COL)
+        .reset_index(drop=True)
+    )
 
-# últimos 12 meses (WIN) — memoria secuencial
-seq = X_all[-WIN:].reshape(1, WIN, len(FEAT_COLS))
+    if len(df) < WINDOW_SIZE:
+        raise ValueError(
+            f"At least {WINDOW_SIZE} historical months are required for LSTM inference."
+        )
 
-# --------------------------------------------------------------
-# 4️⃣ GENERACIÓN DE FECHAS FUTURAS
-# --------------------------------------------------------------
-last_date = df[DATE_COL].max()
-future_dates = pd.period_range(last_date, HORIZON_END, freq="M")[1:].to_timestamp()
+    df["month_sin"] = np.sin(2 * np.pi * df[DATE_COL].dt.month / 12.0)
+    df["month_cos"] = np.cos(2 * np.pi * df[DATE_COL].dt.month / 12.0)
 
-df_future = df.copy()
-base_year = df[DATE_COL].dt.year.min()
+    # The initial training notebook used a zero-based year normalization.
+    base_year = int(df[DATE_COL].dt.year.min())
+    df["year_norm"] = (df[DATE_COL].dt.year - base_year).astype(float)
+    return df
 
-print(f"📅 Inicio: {last_date.date()} → Fin: {future_dates[-1].date()}")
-print(f"🧠 Memoria de secuencia: {WIN} meses")
 
-# --------------------------------------------------------------
-# 5️⃣ PRONÓSTICO ITERATIVO
-# --------------------------------------------------------------
-for next_date in future_dates:
-    month = next_date.month
-    year = next_date.year
-    month_sin = np.sin(2 * np.pi * month / 12)
-    month_cos = np.cos(2 * np.pi * month / 12)
-    year_norm = (year - base_year) + 1.0
+def generate_forecast(
+    horizon_months: int = FORECAST_HORIZON_MONTHS,
+    data_path: Path = DATA_PATH,
+    model_path: Path = MODEL_PATH,
+    scaler_path: Path = SCALER_PATH,
+) -> pd.DataFrame:
+    """Generate an iterative forecast without fitting or modifying the model."""
+    if horizon_months < 1:
+        raise ValueError("horizon_months must be at least 1.")
+    if not model_path.exists():
+        raise FileNotFoundError(
+            f"Missing production LSTM model: {model_path}. "
+            "Run training/train_lstm.py explicitly when retraining is required."
+        )
+    if not scaler_path.exists():
+        raise FileNotFoundError(f"Missing production target scaler: {scaler_path}")
 
-    # predicción en escala normalizada
-    y_scaled_pred = float(model.predict(seq, verbose=0)[0][0])
-    y_pred = float(scaler_y.inverse_transform([[y_scaled_pred]])[0][0])
+    df = load_history(data_path)
+    model = load_model(model_path, compile=False)
+    scaler_y = joblib.load(scaler_path)
 
-    # añadir nueva fila
-    df_future = pd.concat([df_future, pd.DataFrame([{
-        "Isla": ISLAND_NAME,
-        DATE_COL: next_date,
-        TARGET_COL: y_pred,
-        "month_sin": month_sin,
-        "month_cos": month_cos,
-        "year_norm": year_norm,
-        "_x_pasaj": y_scaled_pred
-    }])], ignore_index=True)
+    input_shape = model.input_shape
+    if isinstance(input_shape, list):
+        input_shape = input_shape[0]
+    if len(input_shape) != 3:
+        raise ValueError(f"Unexpected LSTM input shape: {input_shape}")
+    if input_shape[1] not in (None, WINDOW_SIZE):
+        raise ValueError(
+            f"The saved model expects a window of {input_shape[1]}, "
+            f"but inference uses {WINDOW_SIZE}."
+        )
+    if input_shape[2] not in (None, len(FEATURE_COLUMNS)):
+        raise ValueError(
+            f"The saved model expects {input_shape[2]} features, "
+            f"but inference provides {len(FEATURE_COLUMNS)}."
+        )
 
-    # actualización de la secuencia — desplazamiento de ventana
-    next_step = np.array([[y_scaled_pred, month_sin, month_cos, year_norm]], dtype=float)
-    seq = np.concatenate([seq[:, 1:, :], next_step.reshape(1, 1, -1)], axis=1)
+    scaled_target = scaler_y.transform(df[[TARGET_COL]]).reshape(-1)
+    df["_x_pasaj"] = scaled_target
 
-# --------------------------------------------------------------
-# 6️⃣ MARCAR FASE Y GRÁFICO
-# --------------------------------------------------------------
-df_future["Phase"] = np.where(df_future[DATE_COL] <= last_date, "History", "Forecast")
+    sequence = (
+        df[FEATURE_COLUMNS]
+        .tail(WINDOW_SIZE)
+        .to_numpy(dtype=float)
+        .reshape(1, WINDOW_SIZE, len(FEATURE_COLUMNS))
+    )
 
-plt.figure(figsize=(10,5))
-plt.plot(df_future[df_future["Phase"]=="History"][DATE_COL],
-         df_future[df_future["Phase"]=="History"][TARGET_COL],
-         label="Historia", color="tab:blue")
-plt.plot(df_future[df_future["Phase"]=="Forecast"][DATE_COL],
-         df_future[df_future["Phase"]=="Forecast"][TARGET_COL],
-         label="Pronóstico LSTM", color="tab:green")
-plt.title(f"✈️ {ISLAND_NAME} — Pronóstico LSTM (12 meses de memoria)")
-plt.xlabel("Fecha")
-plt.ylabel("Número de pasajeros")
-plt.grid(True, alpha=0.3)
-plt.legend()
-plt.tight_layout()
-plt.show()
+    last_real_date = df[DATE_COL].max()
+    future_dates = pd.date_range(
+        start=last_real_date + pd.offsets.MonthBegin(1),
+        periods=horizon_months,
+        freq="MS",
+    )
+    base_year = int(df[DATE_COL].dt.year.min())
+    df_future = df.copy()
 
-# --------------------------------------------------------------
-# 7️⃣ GUARDAR RESULTADOS
-# --------------------------------------------------------------
-out_file = "forecast_total_canarias_lstm.csv"
-df_future.to_csv(out_file, index=False, encoding="utf-8-sig")
-print(f"💾 Guardado {out_file}")
+    for next_date in future_dates:
+        month_sin = np.sin(2 * np.pi * next_date.month / 12.0)
+        month_cos = np.cos(2 * np.pi * next_date.month / 12.0)
+        year_norm = float(next_date.year - base_year)
 
-print("\n📈 Últimos 12 meses del pronóstico:")
-print(df_future[df_future["Phase"]=="Forecast"].tail(12)[[DATE_COL, TARGET_COL]])
+        scaled_prediction = float(model.predict(sequence, verbose=0)[0][0])
+        prediction = float(
+            scaler_y.inverse_transform([[scaled_prediction]])[0][0]
+        )
+        prediction = max(prediction, 0.0)
+
+        next_row = {
+            "Isla": ISLAND_NAME,
+            DATE_COL: next_date,
+            TARGET_COL: prediction,
+            "month_sin": month_sin,
+            "month_cos": month_cos,
+            "year_norm": year_norm,
+            "_x_pasaj": scaled_prediction,
+        }
+        df_future = pd.concat(
+            [df_future, pd.DataFrame([next_row])],
+            ignore_index=True,
+        )
+
+        next_step = np.asarray(
+            [[scaled_prediction, month_sin, month_cos, year_norm]],
+            dtype=float,
+        ).reshape(1, 1, len(FEATURE_COLUMNS))
+        sequence = np.concatenate([sequence[:, 1:, :], next_step], axis=1)
+
+    df_future["Phase"] = np.where(
+        df_future[DATE_COL] <= last_real_date,
+        "History",
+        "Forecast",
+    )
+    return df_future
+
+
+def main() -> None:
+    """Generate and save the production LSTM forecast."""
+    forecast = generate_forecast()
+    forecast.to_csv(OUTPUT_PATH, index=False, encoding="utf-8-sig")
+
+    forecast_rows = forecast[forecast["Phase"] == "Forecast"]
+    last_history_date = forecast.loc[
+        forecast["Phase"] == "History", DATE_COL
+    ].max()
+    print(
+        f"Saved {len(forecast_rows)} LSTM forecast months to {OUTPUT_PATH} "
+        f"(last real month: {last_history_date.date()})."
+    )
+
+
+if __name__ == "__main__":
+    main()
