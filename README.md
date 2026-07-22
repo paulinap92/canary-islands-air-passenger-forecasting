@@ -47,24 +47,52 @@ It does **not** retrain either model.
 
 ### 3. Explicit retraining
 
-Run retraining separately:
+Retraining is deliberately separate from the monthly update.
+
+#### XGBoost candidate
 
 ```bash
 python training/retrain_models.py
 ```
 
-The retraining workflow creates a new model candidate and reports validation metrics. It does not silently replace the production model. The candidate should be reviewed before promotion.
+This trains and evaluates a new XGBoost candidate and saves:
 
-The current extracted retraining script covers XGBoost. The original LSTM training and architecture comparison remain documented in `notebooks/my_models_trials.ipynb` and should be extracted into a dedicated training module before LSTM retraining is automated.
+```text
+models/xgb_candidate.pkl
+```
+
+#### LSTM candidate
+
+```bash
+python training/train_lstm.py
+```
+
+Optional parameters:
+
+```bash
+python training/train_lstm.py --units 32 --epochs 300 --batch-size 8
+```
+
+This keeps the selected LSTM architecture from the initial notebook, performs a chronological 12-month holdout evaluation, and saves candidate artifacts:
+
+```text
+models/lstm_candidate.keras
+models/scaler_y_candidate.pkl
+models/lstm_candidate_metrics.json
+```
+
+Neither retraining script silently replaces the production model. Candidate metrics must be reviewed before promotion.
 
 ## Production inference
 
 - `model_final_xgb.py` loads `models/xgb_best.pkl` and performs inference only.
 - `model_final_lstm.py` loads `models/lstm_best.h5` and `models/scaler_y.pkl` and performs inference only.
 
-The forecasting horizon is relative to the latest historical month rather than fixed to a calendar date.
+Both scripts generate a horizon relative to the latest historical month rather than using a fixed calendar end date.
 
 ## Model artifacts
+
+Production artifacts:
 
 ```text
 models/
@@ -73,10 +101,14 @@ models/
 └── scaler_y.pkl
 ```
 
-Retraining creates candidate artifacts first, for example:
+Candidate artifacts are kept separate until reviewed:
 
 ```text
-models/xgb_candidate.pkl
+models/
+├── xgb_candidate.pkl
+├── lstm_candidate.keras
+├── scaler_y_candidate.pkl
+└── lstm_candidate_metrics.json
 ```
 
 ## Data pipeline
@@ -92,7 +124,7 @@ build_features()
         ↓
 lag/rolling feature datasets
         ↓
-model inference
+production model inference
         ↓
 forecast CSV files
         ↓
@@ -108,7 +140,8 @@ Streamlit dashboard
 ├── model_final_xgb.py
 ├── model_final_lstm.py
 ├── training/
-│   └── retrain_models.py
+│   ├── retrain_models.py
+│   └── train_lstm.py
 ├── notebooks/
 │   ├── README.md
 │   ├── my_models_trials.ipynb
