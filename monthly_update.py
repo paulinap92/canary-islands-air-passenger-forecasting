@@ -7,6 +7,7 @@ the persisted production models.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 
@@ -19,6 +20,10 @@ def run_command(script: str) -> None:
 
 
 def main() -> None:
+    # The legacy agent still supports RUN_RETRAIN for backward compatibility.
+    # This production monthly workflow explicitly disables it.
+    os.environ.pop("RUN_RETRAIN", None)
+
     agent = PassengerAgent()
     agent.run()
 
