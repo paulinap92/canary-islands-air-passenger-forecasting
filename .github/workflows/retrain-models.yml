@@ -1,0 +1,57 @@
+name: Train model candidates
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Quarterly candidate training: 5 Jan/Apr/Jul/Oct at 03:00 UTC.
+    - cron: "0 3 5 1,4,7,10 *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quarterly-model-retraining
+  cancel-in-progress: false
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-pipeline.txt
+
+      - name: Install training dependencies
+        run: pip install -r requirements-pipeline.txt
+
+      - name: Train XGBoost candidate
+        run: python training/retrain_models.py
+
+      - name: Train LSTM candidate
+        run: python training/train_lstm.py
+
+      - name: Upload candidate models and metrics
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-candidates-${{ github.run_number }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            models/xgb_candidate.pkl
+            models/lstm_candidate.keras
+            models/scaler_y_candidate.pkl
+            models/lstm_candidate_metrics.json
+
+      - name: Write review reminder
+        run: |
+          echo "Candidate artifacts were created only."
+          echo "No production model was replaced."
+          echo "Review validation metrics before promoting any candidate."
