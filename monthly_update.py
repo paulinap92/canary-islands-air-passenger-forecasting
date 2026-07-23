@@ -1,8 +1,8 @@
 """Monthly data and forecast update without model retraining.
 
-Run this workflow after a new WebTenerife XLSX file is available. It updates the
-historical datasets, rebuilds lag features, and generates fresh forecasts using
-the persisted production models.
+Run this workflow after WebTenerife publishes a new monthly XLSX file. It updates
+historical datasets, rebuilds features, refreshes forecasts with persisted
+production models, and appends the run to the immutable forecast history.
 """
 
 from __future__ import annotations
@@ -12,6 +12,10 @@ import subprocess
 import sys
 
 from download_agent import PassengerAgent, build_features
+from forecast_history import append_forecast_history
+
+
+NO_NEW_DATA_MESSAGE = "No se encontró archivo para"
 
 
 def run_command(script: str) -> None:
@@ -25,7 +29,13 @@ def main() -> None:
     os.environ.pop("RUN_RETRAIN", None)
 
     agent = PassengerAgent()
-    agent.run()
+    try:
+        agent.run()
+    except RuntimeError as exc:
+        if NO_NEW_DATA_MESSAGE in str(exc):
+            print("No new WebTenerife monthly file is available. Nothing changed.")
+            return
+        raise
 
     # Feature engineering must use the newly downloaded historical month.
     build_features()
@@ -34,7 +44,10 @@ def main() -> None:
     run_command("model_final_xgb.py")
     run_command("model_final_lstm.py")
 
+    added_rows = append_forecast_history()
+
     print("Monthly update completed: data, features, and forecasts refreshed.")
+    print(f"Forecast history updated with {added_rows} new rows.")
     print("No model retraining was performed.")
 
 
