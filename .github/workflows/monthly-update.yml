@@ -42,8 +42,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add \
-            data/*.xlsx \
+          find data -maxdepth 1 -type f -name '*.xlsx' -print0 | xargs -0 -r git add
+
+          for path in \
             result.csv \
             result_total.csv \
             result_total_with_lags.csv \
@@ -51,6 +52,11 @@ jobs:
             forecast_total_canarias_xgb.csv \
             forecast_total_canarias_lstm.csv \
             forecast_history.csv
+          do
+            if [ -e "$path" ]; then
+              git add "$path"
+            fi
+          done
 
           if git diff --cached --quiet; then
             echo "No new monthly data or forecast output to commit."
