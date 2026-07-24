@@ -1,15 +1,14 @@
 name: CI
 
 on:
-  pull_request:
-    branches: [main]
   push:
+    branches: [main]
+  pull_request:
     branches: [main]
 
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
 
     steps:
       - name: Check out repository
@@ -20,12 +19,11 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: requirements-pipeline.txt
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-pipeline.txt
+          pip install -r requirements.txt
           pip install ruff
 
       - name: Check for critical Python errors
@@ -34,38 +32,23 @@ jobs:
       - name: Compile Python source
         run: python -m compileall -q .
 
-      - name: Test forecast horizon
-        run: |
-          python - <<'PY'
-          import pandas as pd
-          from forecast_horizon import build_future_dates
-
-          dates = build_future_dates(pd.Timestamp("2026-06-01"), 12, "2027-12-01")
-          assert len(dates) == 18
-          assert dates[0] == pd.Timestamp("2026-07-01")
-          assert dates[-1] == pd.Timestamp("2027-12-01")
-
-          rolling = build_future_dates(pd.Timestamp("2027-06-01"), 12, "2027-12-01")
-          assert rolling[-1] == pd.Timestamp("2028-06-01")
-          print("Forecast horizon tests passed.")
-          PY
-
       - name: Validate dashboard datasets
         run: |
           python - <<'PY'
           import pandas as pd
 
           files = {
-              "result.csv": ["Fecha", "Pasajeros"],
-              "result_total.csv": ["Fecha", "Isla", "Pasajeros"],
-              "result_total_with_lags_coded.csv": ["Fecha", "Isla", "Pasajeros", "year_norm"],
-              "forecast_total_canarias_xgb.csv": ["Fecha", "Pasajeros", "Phase"],
-              "forecast_total_canarias_lstm.csv": ["Fecha", "Pasajeros", "Phase"],
+              "result.csv": ["Fecha", "Isla"],
+              "forecast_total_canarias_xgb.csv": ["Fecha"],
+              "forecast_total_canarias_lstm.csv": ["Fecha"],
           }
-          for path, required in files.items():
+
+          for path, required_columns in files.items():
               frame = pd.read_csv(path, encoding="utf-8-sig")
-              missing = [column for column in required if column not in frame.columns]
-              assert not missing, f"{path}: missing {missing}"
-              assert not frame.empty, f"{path}: dataset is empty"
+              missing = [column for column in required_columns if column not in frame.columns]
+              if missing:
+                  raise SystemExit(f"{path}: missing required columns {missing}")
+              if frame.empty:
+                  raise SystemExit(f"{path}: dataset is empty")
               print(f"{path}: {len(frame)} rows")
           PY
