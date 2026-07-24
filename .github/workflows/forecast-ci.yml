@@ -42,30 +42,14 @@ jobs:
         env:
           FORECAST_HORIZON_MONTHS: "12"
           FORECAST_END_DATE: "2027-12-01"
-        run: python model_final_xgb.py > xgb-inference.log 2>&1
-
-      - name: Upload XGBoost failure log
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: xgb-inference-failure
-          path: xgb-inference.log
-          retention-days: 3
+        run: python model_final_xgb.py
 
       - name: Run LSTM production-model inference
         env:
           FORECAST_HORIZON_MONTHS: "12"
           FORECAST_END_DATE: "2027-12-01"
           TF_CPP_MIN_LOG_LEVEL: "2"
-        run: python model_final_lstm.py > lstm-inference.log 2>&1
-
-      - name: Upload LSTM failure log
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: lstm-inference-failure
-          path: lstm-inference.log
-          retention-days: 3
+        run: python model_final_lstm.py
 
       - name: Build forecast history
         run: python forecast_history.py
@@ -83,14 +67,26 @@ jobs:
               frame = pd.read_csv(path, encoding="utf-8-sig")
               frame["Fecha"] = pd.to_datetime(frame["Fecha"])
               future = frame[frame["Phase"] == "Forecast"]
-              assert not future.empty
-              assert future["Fecha"].max() >= expected_end
+              assert len(future) == 18, (path, len(future))
+              assert future["Fecha"].min() == pd.Timestamp("2026-07-01")
+              assert future["Fecha"].max() == expected_end
               assert future["Pasajeros"].notna().all()
               assert (future["Pasajeros"] >= 0).all()
               print(path, len(future), future["Fecha"].max())
 
           history = pd.read_csv("forecast_history.csv", encoding="utf-8-sig")
           assert {"XGB", "LSTM"}.issubset(set(history["model"]))
-          assert pd.to_datetime(history["target_date"]).max() >= expected_end
+          assert pd.to_datetime(history["target_date"]).max() == expected_end
           print("forecast_history.csv", len(history))
           PY
+
+      - name: Upload validated forecast outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: validated-forecast-outputs
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            forecast_total_canarias_xgb.csv
+            forecast_total_canarias_lstm.csv
+            forecast_history.csv
