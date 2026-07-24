@@ -1,133 +1,123 @@
 # ✈️ Canary Islands Air Passenger Forecasting Dashboard
 
-Interactive Streamlit dashboard for analysis and forecasting of air passenger traffic in the Canary Islands using official WebTenerife data.
+Interactive Streamlit dashboard for analysis and forecasting of Canary Islands air-passenger traffic using official WebTenerife data.
 
-## Project overview
+## What the project does
 
-The project combines:
+- ingests newly published monthly passenger data,
+- rebuilds chronological lag and rolling-window features,
+- generates production forecasts with persisted XGBoost and LSTM models,
+- preserves an append-only history of forecasts,
+- trains separate model candidates on a controlled schedule,
+- presents historical data and future predictions in Streamlit.
 
-- monthly ingestion of official passenger data,
-- historical analysis and visualisation,
-- feature engineering for monthly time series,
-- XGBoost and LSTM forecasting,
-- persisted production models,
-- a Streamlit dashboard.
+## Production data and forecast workflow
 
-## Model development lifecycle
+The weekly GitHub Actions workflow can also be started manually. It:
 
-### 1. Initial model selection and first training
+1. checks WebTenerife for the next monthly XLSX,
+2. updates historical CSV files when a new month exists,
+3. rebuilds XGBoost features,
+4. loads the current production XGBoost and LSTM artifacts,
+5. generates forecasts without calling `fit()`,
+6. appends the new predictions to `forecast_history.csv`,
+7. commits changed production outputs.
 
-`notebooks/my_models_trials.ipynb` documents the original experimental phase of the project. It was used to:
-
-- compare classical regression models,
-- run time-series validation and holdout evaluation,
-- test XGBoost, LSTM, GRU, and Transformer variants,
-- select the final XGBoost and LSTM approaches,
-- create the first persisted production artifacts.
-
-This notebook is an **initial model-selection and training record**. It is not intended to run during every monthly data update.
-
-### 2. Monthly update without retraining
-
-Run:
+Forecasting always covers at least 12 future months. The current workflow also extends the output through December 2027; once the rolling 12-month horizon reaches further than that date, the longer rolling horizon wins.
 
 ```bash
 python monthly_update.py
 ```
 
-This workflow:
+The monthly workflow never retrains or replaces a model.
 
-1. downloads and processes the next available monthly XLSX file,
-2. updates the historical CSV datasets,
-3. rebuilds lag and rolling-window features,
-4. loads the existing persisted XGBoost and LSTM models,
-5. generates a fresh 12-month forecast.
+## Production artifacts
 
-It does **not** retrain either model.
+```text
+models/xgb_best.pkl
+models/lstm_best.h5
+models/scaler_y.pkl
+```
 
-### 3. Explicit retraining
+- `model_final_xgb.py` loads the persisted XGBoost model and performs inference only.
+- `model_final_lstm.py` loads the persisted LSTM model and scaler and performs inference only.
+- `forecast_horizon.py` provides the shared rolling forecast-horizon logic.
 
-Retraining is deliberately separate from the monthly update.
+## Forecast history
 
-#### XGBoost candidate
+`forecast_history.csv` records each genuine forward-looking production prediction with:
+
+- generation timestamp,
+- forecast origin,
+- target month,
+- horizon in months,
+- model name,
+- model-artifact version hash,
+- predicted passenger value.
+
+Repeated runs with the same origin, target, model, and version are deduplicated. Historical forecasts are not reconstructed retroactively.
+
+## Model development and retraining
+
+The root-level `my_models_trials.ipynb` documents the original model comparison, architecture experiments, model selection, and first persisted artifacts. It is not executed during routine production updates.
+
+Quarterly retraining runs on 5 January, April, July, and October and can also be triggered manually. For both XGBoost and LSTM it:
+
+1. evaluates a candidate trained on all available history,
+2. evaluates a candidate using only data from January 2022 onward,
+3. compares both variants on the same chronological 12-month holdout,
+4. selects the lower-RMSE data scope,
+5. retrains the selected candidate on all available data within that scope,
+6. stores the candidate and its comparison report as a workflow artifact.
 
 ```bash
 python training/retrain_models.py
-```
-
-This trains and evaluates a new XGBoost candidate and saves:
-
-```text
-models/xgb_candidate.pkl
-```
-
-#### LSTM candidate
-
-```bash
 python training/train_lstm.py
 ```
 
-Optional parameters:
+LSTM parameters can be overridden:
 
 ```bash
-python training/train_lstm.py --units 32 --epochs 300 --batch-size 8
+python training/train_lstm.py --units 32 --epochs 150 --batch-size 8
 ```
 
-This keeps the selected LSTM architecture from the initial notebook, performs a chronological 12-month holdout evaluation, and saves candidate artifacts:
+Candidate outputs remain separate:
 
 ```text
+models/xgb_candidate.pkl
+models/xgb_candidate_metrics.json
 models/lstm_candidate.keras
 models/scaler_y_candidate.pkl
 models/lstm_candidate_metrics.json
 ```
 
-Neither retraining script silently replaces the production model. Candidate metrics must be reviewed before promotion.
+No candidate automatically replaces a production model. Promotion requires human review of the holdout metrics and forecast behaviour.
 
-## Production inference
+## Automation and validation
 
-- `model_final_xgb.py` loads `models/xgb_best.pkl` and performs inference only.
-- `model_final_lstm.py` loads `models/lstm_best.h5` and `models/scaler_y.pkl` and performs inference only.
+- `CI` checks critical Python errors, compiles the source, and validates dashboard datasets.
+- `Forecast CI` runs both persisted production models and validates the generated horizon, nulls, negative predictions, and forecast-history output.
+- `Build branch forecast preview` creates reviewable forecast CSVs on the forecasting branch.
+- `Update data and forecasts` performs the scheduled production data refresh after merge.
+- `Train model candidates` performs scheduled candidate evaluation and training.
 
-Both scripts generate a horizon relative to the latest historical month rather than using a fixed calendar end date.
-
-## Model artifacts
-
-Production artifacts:
-
-```text
-models/
-├── xgb_best.pkl
-├── lstm_best.h5
-└── scaler_y.pkl
-```
-
-Candidate artifacts are kept separate until reviewed:
+## Data flow
 
 ```text
-models/
-├── xgb_candidate.pkl
-├── lstm_candidate.keras
-├── scaler_y_candidate.pkl
-└── lstm_candidate_metrics.json
-```
-
-## Data pipeline
-
-```text
-new monthly XLSX
-        ↓
+WebTenerife XLSX
+      ↓
 download_agent.py
-        ↓
+      ↓
 result.csv + result_total.csv
-        ↓
+      ↓
 build_features()
-        ↓
-lag/rolling feature datasets
-        ↓
-production model inference
-        ↓
-forecast CSV files
-        ↓
+      ↓
+lag and rolling-feature datasets
+      ↓
+persisted XGBoost and LSTM inference
+      ↓
+forecast CSVs + forecast_history.csv
+      ↓
 Streamlit dashboard
 ```
 
@@ -137,27 +127,21 @@ Streamlit dashboard
 ├── main.py
 ├── monthly_update.py
 ├── download_agent.py
+├── forecast_horizon.py
+├── forecast_history.py
 ├── model_final_xgb.py
 ├── model_final_lstm.py
+├── my_models_trials.ipynb
 ├── training/
 │   ├── retrain_models.py
 │   └── train_lstm.py
-├── notebooks/
-│   ├── README.md
-│   ├── my_models_trials.ipynb
-│   ├── prepare_data_for_model.ipynb
-│   └── data_processing.ipynb
 ├── models/
 ├── data/
-├── charts/
 ├── forecast/
+├── charts/
 ├── kpi/
 └── ui/
 ```
-
-## Data source
-
-WebTenerife — Air Traffic Statistics.
 
 ## Run the dashboard
 
@@ -165,6 +149,10 @@ WebTenerife — Air Traffic Statistics.
 pipenv install
 streamlit run main.py
 ```
+
+## Data source
+
+WebTenerife — Air Traffic Statistics.
 
 ## License
 
