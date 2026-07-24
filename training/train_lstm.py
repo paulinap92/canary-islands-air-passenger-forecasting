@@ -66,7 +66,10 @@ def prepare_scope(df: pd.DataFrame, scope: str) -> pd.DataFrame:
 
 
 def build_sequences(features: np.ndarray, target: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    x_values = [features[index - WINDOW_SIZE:index] for index in range(WINDOW_SIZE, len(features))]
+    x_values = [
+        features[index - WINDOW_SIZE:index]
+        for index in range(WINDOW_SIZE, len(features))
+    ]
     y_values = [float(target[index]) for index in range(WINDOW_SIZE, len(features))]
     return np.asarray(x_values, dtype=float), np.asarray(y_values, dtype=float)
 
@@ -83,13 +86,13 @@ def build_lstm_model(input_shape: tuple[int, int], units: int) -> Sequential:
     return model
 
 
-def train_scope(
+def evaluate_scope(
     source: pd.DataFrame,
     scope: str,
     units: int,
     epochs: int,
     batch_size: int,
-) -> tuple[Sequential, MinMaxScaler, dict[str, object]]:
+) -> dict[str, object]:
     set_reproducible_seed()
     df = prepare_scope(source, scope)
     split_row = len(df) - HOLDOUT_MONTHS
@@ -128,7 +131,7 @@ def train_scope(
         model.predict(x_holdout, verbose=0).reshape(-1, 1)
     ).reshape(-1)
     actuals = scaler.inverse_transform(y_holdout.reshape(-1, 1)).reshape(-1)
-    metrics: dict[str, object] = {
+    return {
         "scope": scope,
         "units": units,
         "epochs_run": int(len(history.history["loss"])),
@@ -141,43 +144,82 @@ def train_scope(
         "mae": float(mean_absolute_error(actuals, predictions)),
         "rmse": float(mean_squared_error(actuals, predictions) ** 0.5),
     }
-    return model, scaler, metrics
+
+
+def train_final_candidate(
+    source: pd.DataFrame,
+    scope: str,
+    units: int,
+    epochs: int,
+    batch_size: int,
+) -> tuple[Sequential, MinMaxScaler, pd.DataFrame]:
+    set_reproducible_seed()
+    df = prepare_scope(source, scope)
+    scaler = MinMaxScaler()
+    scaler.fit(df[[TARGET_COL]])
+    df["_x_pasaj"] = scaler.transform(df[[TARGET_COL]]).reshape(-1)
+    x_train, y_train = build_sequences(
+        df[FEATURE_COLUMNS].to_numpy(dtype=float),
+        df["_x_pasaj"].to_numpy(dtype=float),
+    )
+    model = build_lstm_model((WINDOW_SIZE, len(FEATURE_COLUMNS)), units)
+    model.fit(
+        x_train,
+        y_train,
+        epochs=max(epochs, 1),
+        batch_size=batch_size,
+        shuffle=False,
+        verbose=1,
+    )
+    return model, scaler, df
 
 
 def train_candidates(units: int, epochs: int, batch_size: int) -> dict[str, object]:
     source = load_history()
-    results = []
-    for scope in ("all_history", "post_covid"):
-        model, scaler, metrics = train_scope(
-            source, scope, units, epochs, batch_size
-        )
-        results.append((model, scaler, metrics))
+    metrics = [
+        evaluate_scope(source, scope, units, epochs, batch_size)
+        for scope in ("all_history", "post_covid")
+    ]
+    for result in metrics:
         print(
-            f"LSTM {scope}: MAE={metrics['mae']:,.2f}, "
-            f"RMSE={metrics['rmse']:,.2f}"
+            f"LSTM {result['scope']}: MAE={result['mae']:,.2f}, "
+            f"RMSE={result['rmse']:,.2f}"
         )
 
-    best_model, best_scaler, best_metrics = min(
-        results, key=lambda item: float(item[2]["rmse"])
+    best_metrics = min(metrics, key=lambda item: float(item["rmse"]))
+    selected_scope = str(best_metrics["scope"])
+    final_epochs = int(best_metrics["epochs_run"])
+    final_model, final_scaler, final_data = train_final_candidate(
+        source,
+        selected_scope,
+        units,
+        final_epochs,
+        batch_size,
     )
+
     MODEL_DIR.mkdir(exist_ok=True)
     model_path = MODEL_DIR / "lstm_candidate.keras"
     scaler_path = MODEL_DIR / "scaler_y_candidate.pkl"
     metrics_path = MODEL_DIR / "lstm_candidate_metrics.json"
-    best_model.save(model_path)
-    joblib.dump(best_scaler, scaler_path)
+    final_model.save(model_path)
+    joblib.dump(final_scaler, scaler_path)
 
     report: dict[str, object] = {
         "model": "LSTM",
         "selection_metric": "rmse",
-        "selected_scope": best_metrics["scope"],
+        "selected_scope": selected_scope,
+        "final_training_start": str(final_data.iloc[0][DATE_COL].date()),
+        "final_training_end": str(final_data.iloc[-1][DATE_COL].date()),
+        "final_training_rows": int(len(final_data)),
+        "final_training_epochs": final_epochs,
         "automatic_production_replacement": False,
-        "candidates": [metrics for _, _, metrics in results],
+        "candidates": metrics,
         "model_path": str(model_path),
         "scaler_path": str(scaler_path),
     }
     metrics_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
-    print(f"Selected candidate scope: {best_metrics['scope']}")
+    print(f"Selected candidate scope: {selected_scope}")
+    print("Candidate retrained on all selected-scope data.")
     print("Production model was not replaced.")
     return report
 
