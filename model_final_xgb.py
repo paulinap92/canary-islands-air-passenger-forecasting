@@ -1,8 +1,4 @@
-"""Generate an XGBoost forecast using the persisted production model.
-
-This module performs inference only. Model training is intentionally isolated in
-``training/retrain_models.py`` and must not run during monthly data updates.
-"""
+"""Generate an XGBoost forecast using the persisted production model."""
 
 from __future__ import annotations
 
@@ -12,6 +8,8 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
+
+from forecast_horizon import build_future_dates
 
 ISLAND_NAME = "Total Canarias"
 TARGET_COL = "Pasajeros"
@@ -50,40 +48,13 @@ def load_history(data_path: Path = DATA_PATH) -> pd.DataFrame:
     df[TARGET_COL] = pd.to_numeric(df[TARGET_COL], errors="coerce")
     df = (
         df[df["Isla"] == ISLAND_NAME]
-        .dropna(subset=[DATE_COL, TARGET_COL])
+        .dropna(subset=[DATE_COL, TARGET_COL, *FEATURES])
         .sort_values(DATE_COL)
         .reset_index(drop=True)
     )
-
     if len(df) < 12:
         raise ValueError("At least 12 historical months are required for forecasting.")
-
     return df
-
-
-def build_future_dates(
-    last_real_date: pd.Timestamp,
-    minimum_horizon_months: int,
-    forecast_end_date: str | None,
-) -> pd.DatetimeIndex:
-    """Return at least N future months and optionally extend through an end month."""
-    if minimum_horizon_months < 1:
-        raise ValueError("minimum_horizon_months must be at least 1.")
-
-    minimum_end = (
-        last_real_date + pd.DateOffset(months=minimum_horizon_months)
-    ).to_period("M").to_timestamp()
-    end_date = minimum_end
-
-    if forecast_end_date:
-        configured_end = pd.Timestamp(forecast_end_date).to_period("M").to_timestamp()
-        end_date = max(end_date, configured_end)
-
-    return pd.date_range(
-        start=last_real_date + pd.offsets.MonthBegin(1),
-        end=end_date,
-        freq="MS",
-    )
 
 
 def generate_forecast(
@@ -101,33 +72,31 @@ def generate_forecast(
 
     df = load_history(data_path)
     model = joblib.load(model_path)
-
     expected_features = getattr(model, "n_features_in_", None)
     if expected_features is not None and expected_features != len(FEATURES):
         raise ValueError(
-            "The saved XGBoost model expects "
-            f"{expected_features} features, but inference provides {len(FEATURES)}. "
-            "Retrain the model with training/retrain_models.py."
+            f"The saved XGBoost model expects {expected_features} features, "
+            f"but inference provides {len(FEATURES)}."
         )
 
     df_future = df.copy()
     last_real_date = df_future[DATE_COL].max()
+    last_real_year_norm = float(df_future.iloc[-1]["year_norm"])
     future_dates = build_future_dates(
         last_real_date,
         minimum_horizon_months,
         forecast_end_date,
     )
-    base_year = int(df[DATE_COL].dt.year.min())
 
     for next_date in future_dates:
         new_row = df_future.iloc[-1].copy()
         new_row[DATE_COL] = next_date
         new_row["Isla"] = ISLAND_NAME
-
-        month = next_date.month
-        new_row["month_sin"] = np.sin(2 * np.pi * month / 12.0)
-        new_row["month_cos"] = np.cos(2 * np.pi * month / 12.0)
-        new_row["year_norm"] = (next_date.year - base_year) + 1
+        new_row["month_sin"] = np.sin(2 * np.pi * next_date.month / 12.0)
+        new_row["month_cos"] = np.cos(2 * np.pi * next_date.month / 12.0)
+        new_row["year_norm"] = (
+            last_real_year_norm + next_date.year - last_real_date.year
+        )
 
         for lag in range(1, 13):
             new_row[f"lag_{lag}"] = df_future[TARGET_COL].iloc[-lag]
@@ -140,27 +109,20 @@ def generate_forecast(
             [[float(new_row[feature]) for feature in FEATURES]],
             dtype=float,
         )
-        prediction = float(model.predict(x_pred)[0])
-        new_row[TARGET_COL] = max(prediction, 0.0)
-
+        new_row[TARGET_COL] = max(float(model.predict(x_pred)[0]), 0.0)
         df_future = pd.concat(
-            [df_future, pd.DataFrame([new_row])],
-            ignore_index=True,
+            [df_future, pd.DataFrame([new_row])], ignore_index=True
         )
 
     df_future["Phase"] = np.where(
-        df_future[DATE_COL] <= last_real_date,
-        "History",
-        "Forecast",
+        df_future[DATE_COL] <= last_real_date, "History", "Forecast"
     )
     return df_future
 
 
 def main() -> None:
-    """Generate and persist the production XGBoost forecast."""
     forecast = generate_forecast()
     forecast.to_csv(OUTPUT_PATH, index=False, encoding="utf-8-sig")
-
     forecast_rows = forecast[forecast["Phase"] == "Forecast"]
     last_history_date = forecast.loc[
         forecast["Phase"] == "History", DATE_COL
