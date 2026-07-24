@@ -16,7 +16,7 @@ concurrency:
 jobs:
   retrain:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 180
 
     steps:
       - name: Check out repository
@@ -32,11 +32,28 @@ jobs:
       - name: Install training dependencies
         run: pip install -r requirements-pipeline.txt
 
-      - name: Train XGBoost candidate
+      - name: Train and compare XGBoost candidates
         run: python training/retrain_models.py
 
-      - name: Train LSTM candidate
+      - name: Train and compare LSTM candidates
         run: python training/train_lstm.py
+
+      - name: Validate candidate reports
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          for path in (
+              Path("models/xgb_candidate_metrics.json"),
+              Path("models/lstm_candidate_metrics.json"),
+          ):
+              report = json.loads(path.read_text(encoding="utf-8"))
+              assert report["selected_scope"] in {"all_history", "post_covid"}
+              assert report["automatic_production_replacement"] is False
+              assert len(report["candidates"]) == 2
+              print(path, report["selected_scope"])
+          PY
 
       - name: Upload candidate models and metrics
         uses: actions/upload-artifact@v4
@@ -46,6 +63,7 @@ jobs:
           retention-days: 30
           path: |
             models/xgb_candidate.pkl
+            models/xgb_candidate_metrics.json
             models/lstm_candidate.keras
             models/scaler_y_candidate.pkl
             models/lstm_candidate_metrics.json
@@ -53,5 +71,6 @@ jobs:
       - name: Write review reminder
         run: |
           echo "Candidate artifacts were created only."
+          echo "Full-history and post-COVID variants were compared."
           echo "No production model was replaced."
           echo "Review validation metrics before promoting any candidate."
