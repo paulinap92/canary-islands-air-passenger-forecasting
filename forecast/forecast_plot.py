@@ -12,8 +12,7 @@ PHASE_COL = "Phase"
 
 
 def _prepare_forecast_frame(df: pd.DataFrame, model_name: str) -> pd.DataFrame:
-    """Validate and normalize one model forecast frame."""
-    required = {DATE_COL, TARGET_COL}
+    required = {DATE_COL, TARGET_COL, PHASE_COL}
     missing = sorted(required.difference(df.columns))
     if missing:
         raise KeyError(f"{model_name}: missing columns {missing}")
@@ -21,12 +20,7 @@ def _prepare_forecast_frame(df: pd.DataFrame, model_name: str) -> pd.DataFrame:
     result = df.copy()
     result[DATE_COL] = pd.to_datetime(result[DATE_COL], errors="coerce")
     result[TARGET_COL] = pd.to_numeric(result[TARGET_COL], errors="coerce")
-    result = result.dropna(subset=[DATE_COL, TARGET_COL]).sort_values(DATE_COL)
-
-    if PHASE_COL not in result.columns:
-        raise KeyError(f"{model_name}: missing '{PHASE_COL}' column")
-
-    return result
+    return result.dropna(subset=[DATE_COL, TARGET_COL]).sort_values(DATE_COL)
 
 
 def plot_forecast_tab(
@@ -34,9 +28,6 @@ def plot_forecast_tab(
     df_xgb: pd.DataFrame,
     df_lstm: pd.DataFrame,
 ) -> None:
-    """Render actual history and future XGBoost/LSTM forecasts."""
-    st.subheader("🔮 Pronóstico — datos reales y próximos 12 meses")
-
     if df_xgb is None or df_lstm is None:
         st.warning("⚠️ No se pudieron cargar las predicciones.")
         return
@@ -52,7 +43,6 @@ def plot_forecast_tab(
         .sum()
         .sort_values(DATE_COL)
     )
-
     if df_hist.empty:
         st.warning("No hay datos históricos de 'TOTAL PASAJEROS'.")
         return
@@ -72,12 +62,23 @@ def plot_forecast_tab(
         (lstm[PHASE_COL] == "Forecast") & (lstm[DATE_COL] > last_real_date)
     ].copy()
 
-    model_choice = st.radio(
-        "Modelo",
-        ["XGB", "LSTM", "Ambos"],
-        horizontal=True,
+    available_end_dates = [
+        frame[DATE_COL].max()
+        for frame in (xgb_future, lstm_future)
+        if not frame.empty
+    ]
+    if not available_end_dates:
+        st.warning("No hay predicciones futuras disponibles.")
+        return
+    forecast_end = max(available_end_dates)
+    st.subheader(
+        "🔮 Pronóstico — datos reales y predicciones hasta "
+        f"{forecast_end.strftime('%m/%Y')}"
     )
 
+    model_choice = st.radio(
+        "Modelo", ["XGB", "LSTM", "Ambos"], horizontal=True
+    )
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
@@ -99,7 +100,6 @@ def plot_forecast_tab(
                 line=dict(width=3, dash="dash"),
             )
         )
-
     if model_choice in {"LSTM", "Ambos"}:
         fig.add_trace(
             go.Scatter(
@@ -117,7 +117,6 @@ def plot_forecast_tab(
         annotation_text="Inicio del pronóstico",
         annotation_position="top left",
     )
-
     fig.update_layout(
         height=500,
         template="simple_white",
@@ -128,7 +127,6 @@ def plot_forecast_tab(
         hovermode="x unified",
     )
     st.plotly_chart(fig, use_container_width=True)
-
     st.caption(
         "Las líneas de XGB y LSTM muestran únicamente predicciones futuras. "
         "La historia corresponde a datos reales, no a valores ajustados por los modelos."
@@ -145,14 +143,12 @@ def plot_forecast_tab(
             lstm_display["Modelo"] = "LSTM"
             tables.append(lstm_display)
 
-        if not tables:
-            st.info("No hay predicciones futuras disponibles.")
-            return
-
         display = pd.concat(tables, ignore_index=True)
         display[DATE_COL] = display[DATE_COL].dt.to_period("M").astype(str)
         display = display.rename(
             columns={DATE_COL: "Mes", TARGET_COL: "Pasajeros previstos"}
         )
-        display = display[["Mes", "Modelo", "Pasajeros previstos"]]
-        st.dataframe(display, use_container_width=True)
+        st.dataframe(
+            display[["Mes", "Modelo", "Pasajeros previstos"]],
+            use_container_width=True,
+        )
