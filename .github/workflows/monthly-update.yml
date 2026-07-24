@@ -35,6 +35,7 @@ jobs:
       - name: Update data, forecasts, and forecast history
         env:
           FORECAST_HORIZON_MONTHS: "12"
+          FORECAST_END_DATE: "2027-12-01"
         run: python monthly_update.py
 
       - name: Commit updated production outputs
