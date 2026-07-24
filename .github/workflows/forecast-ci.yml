@@ -1,0 +1,74 @@
+name: Forecast CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  forecast-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-pipeline.txt
+
+      - name: Install pipeline dependencies
+        run: pip install -r requirements-pipeline.txt
+
+      - name: Test forecast horizon
+        run: |
+          python - <<'PY'
+          import pandas as pd
+          from forecast_horizon import build_future_dates
+
+          dates = build_future_dates(pd.Timestamp("2026-06-01"), 12, "2027-12-01")
+          assert len(dates) == 18
+          assert dates[0] == pd.Timestamp("2026-07-01")
+          assert dates[-1] == pd.Timestamp("2027-12-01")
+
+          rolling = build_future_dates(pd.Timestamp("2027-06-01"), 12, "2027-12-01")
+          assert rolling[-1] == pd.Timestamp("2028-06-01")
+          print("Forecast horizon tests passed.")
+          PY
+
+      - name: Run production-model inference
+        env:
+          FORECAST_HORIZON_MONTHS: "12"
+          FORECAST_END_DATE: "2027-12-01"
+        run: |
+          python model_final_xgb.py
+          python model_final_lstm.py
+          python forecast_history.py
+
+      - name: Validate forecast outputs
+        run: |
+          python - <<'PY'
+          import pandas as pd
+
+          expected_end = pd.Timestamp("2027-12-01")
+          for path in (
+              "forecast_total_canarias_xgb.csv",
+              "forecast_total_canarias_lstm.csv",
+          ):
+              frame = pd.read_csv(path, encoding="utf-8-sig")
+              frame["Fecha"] = pd.to_datetime(frame["Fecha"])
+              future = frame[frame["Phase"] == "Forecast"]
+              assert not future.empty
+              assert future["Fecha"].max() >= expected_end
+              assert future["Pasajeros"].notna().all()
+              assert (future["Pasajeros"] >= 0).all()
+              print(path, len(future), future["Fecha"].max())
+
+          history = pd.read_csv("forecast_history.csv", encoding="utf-8-sig")
+          assert {"XGB", "LSTM"}.issubset(set(history["model"]))
+          assert pd.to_datetime(history["target_date"]).max() >= expected_end
+          print("forecast_history.csv", len(history))
+          PY
