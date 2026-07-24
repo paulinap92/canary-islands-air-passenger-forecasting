@@ -1,16 +1,11 @@
-"""Explicit model retraining workflow.
-
-This script is intentionally separate from the monthly update. Run it manually
-or from a dedicated scheduled job only when a new model candidate should be
-trained and evaluated.
-"""
+"""Train and compare XGBoost candidates without replacing production."""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import joblib
-import numpy as np
 import pandas as pd
 from sklearn.compose import TransformedTargetRegressor
 from sklearn.impute import SimpleImputer
@@ -24,6 +19,8 @@ MODEL_DIR = Path("models")
 TARGET_COL = "Pasajeros"
 DATE_COL = "Fecha"
 ISLAND_NAME = "Total Canarias"
+HOLDOUT_MONTHS = 12
+POST_COVID_START = pd.Timestamp("2022-01-01")
 
 FEATURES = [
     "month_sin",
@@ -46,55 +43,91 @@ def load_training_data() -> pd.DataFrame:
         .reset_index(drop=True)
     )
     if len(df) < 36:
-        raise ValueError("Too few monthly observations for a reliable retraining run.")
+        raise ValueError("Too few monthly observations for reliable retraining.")
     return df
 
 
 def build_xgb_model() -> TransformedTargetRegressor:
-    regressor = Pipeline([
-        ("imputer", SimpleImputer(strategy="median")),
-        ("xgb", XGBRegressor(
-            n_estimators=600,
-            learning_rate=0.05,
-            max_depth=3,
-            subsample=0.8,
-            colsample_bytree=0.7,
-            objective="reg:squarederror",
-            random_state=42,
-        )),
-    ])
+    regressor = Pipeline(
+        [
+            ("imputer", SimpleImputer(strategy="median")),
+            (
+                "xgb",
+                XGBRegressor(
+                    n_estimators=600,
+                    learning_rate=0.05,
+                    max_depth=3,
+                    subsample=0.8,
+                    colsample_bytree=0.7,
+                    objective="reg:squarederror",
+                    random_state=42,
+                ),
+            ),
+        ]
+    )
     return TransformedTargetRegressor(
         regressor=regressor,
         transformer=StandardScaler(),
     )
 
 
+def evaluate_scope(df: pd.DataFrame, scope: str) -> tuple[object, dict[str, object]]:
+    scoped = df if scope == "all_history" else df[df[DATE_COL] >= POST_COVID_START]
+    scoped = scoped.reset_index(drop=True)
+    if len(scoped) < HOLDOUT_MONTHS + 24:
+        raise ValueError(f"Not enough observations for scope {scope}: {len(scoped)}")
+
+    split = len(scoped) - HOLDOUT_MONTHS
+    train = scoped.iloc[:split]
+    holdout = scoped.iloc[split:]
+    model = build_xgb_model()
+    model.fit(train[FEATURES].to_numpy(), train[TARGET_COL].to_numpy())
+    predictions = model.predict(holdout[FEATURES].to_numpy())
+
+    metrics: dict[str, object] = {
+        "scope": scope,
+        "training_start": str(train.iloc[0][DATE_COL].date()),
+        "training_end": str(train.iloc[-1][DATE_COL].date()),
+        "holdout_start": str(holdout.iloc[0][DATE_COL].date()),
+        "holdout_end": str(holdout.iloc[-1][DATE_COL].date()),
+        "training_rows": int(len(train)),
+        "holdout_rows": int(len(holdout)),
+        "mae": float(mean_absolute_error(holdout[TARGET_COL], predictions)),
+        "rmse": float(mean_squared_error(holdout[TARGET_COL], predictions) ** 0.5),
+    }
+    return model, metrics
+
+
 def main() -> None:
     df = load_training_data()
-    split = max(24, len(df) - 12)
+    results: list[tuple[object, dict[str, object]]] = []
+    for scope in ("all_history", "post_covid"):
+        model, metrics = evaluate_scope(df, scope)
+        results.append((model, metrics))
+        print(
+            f"XGBoost {scope}: MAE={metrics['mae']:,.2f}, "
+            f"RMSE={metrics['rmse']:,.2f}"
+        )
 
-    train = df.iloc[:split]
-    test = df.iloc[split:]
-
-    candidate = build_xgb_model()
-    candidate.fit(train[FEATURES].to_numpy(), train[TARGET_COL].to_numpy())
-
-    predictions = candidate.predict(test[FEATURES].to_numpy())
-    mae = mean_absolute_error(test[TARGET_COL], predictions)
-    rmse = mean_squared_error(test[TARGET_COL], predictions) ** 0.5
-
-    print(f"Candidate XGBoost MAE: {mae:,.2f}")
-    print(f"Candidate XGBoost RMSE: {rmse:,.2f}")
-    print("Review these metrics before replacing the production model.")
-
+    best_model, best_metrics = min(results, key=lambda item: float(item[1]["rmse"]))
     MODEL_DIR.mkdir(exist_ok=True)
     candidate_path = MODEL_DIR / "xgb_candidate.pkl"
-    joblib.dump(candidate, candidate_path)
-    print(f"Candidate saved to {candidate_path}")
+    metrics_path = MODEL_DIR / "xgb_candidate_metrics.json"
+    joblib.dump(best_model, candidate_path)
 
-    # LSTM retraining remains documented in notebooks/my_models_trials.ipynb.
-    # It should be extracted into a dedicated training module before it is
-    # automated, so the architecture and validation procedure stay explicit.
+    report = {
+        "model": "XGBoost",
+        "selection_metric": "rmse",
+        "selected_scope": best_metrics["scope"],
+        "automatic_production_replacement": False,
+        "candidates": [metrics for _, metrics in results],
+        "candidate_path": str(candidate_path),
+    }
+    metrics_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    print(f"Selected candidate scope: {best_metrics['scope']}")
+    print(f"Candidate saved to {candidate_path}")
+    print(f"Comparison report saved to {metrics_path}")
+    print("Production model was not replaced.")
 
 
 if __name__ == "__main__":
