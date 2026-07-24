@@ -1,8 +1,4 @@
-"""Generate an LSTM forecast using persisted production artifacts.
-
-This module performs inference only. LSTM retraining is isolated in
-``training/train_lstm.py`` and must not run during monthly data updates.
-"""
+"""Generate an LSTM forecast using persisted production artifacts."""
 
 from __future__ import annotations
 
@@ -14,6 +10,8 @@ import numpy as np
 import pandas as pd
 from tensorflow.keras.models import load_model
 
+from forecast_horizon import build_future_dates
+
 ISLAND_NAME = "Total Canarias"
 TARGET_COL = "Pasajeros"
 DATE_COL = "Fecha"
@@ -22,7 +20,6 @@ DATA_PATH = Path("result_total.csv")
 MODEL_PATH = Path("models/lstm_best.h5")
 SCALER_PATH = Path("models/scaler_y.pkl")
 OUTPUT_PATH = Path("forecast_total_canarias_lstm.csv")
-
 WINDOW_SIZE = 12
 MIN_FORECAST_HORIZON_MONTHS = int(os.getenv("FORECAST_HORIZON_MONTHS", "12"))
 FORECAST_END_DATE = os.getenv("FORECAST_END_DATE")
@@ -30,7 +27,6 @@ FEATURE_COLUMNS = ["_x_pasaj", "month_sin", "month_cos", "year_norm"]
 
 
 def load_history(data_path: Path = DATA_PATH) -> pd.DataFrame:
-    """Load and prepare historical data exactly as required by the LSTM."""
     if not data_path.exists():
         raise FileNotFoundError(f"Missing historical dataset: {data_path}")
 
@@ -48,7 +44,6 @@ def load_history(data_path: Path = DATA_PATH) -> pd.DataFrame:
         .sort_values(DATE_COL)
         .reset_index(drop=True)
     )
-
     if len(df) < WINDOW_SIZE:
         raise ValueError(
             f"At least {WINDOW_SIZE} historical months are required for LSTM inference."
@@ -61,31 +56,6 @@ def load_history(data_path: Path = DATA_PATH) -> pd.DataFrame:
     return df
 
 
-def build_future_dates(
-    last_real_date: pd.Timestamp,
-    minimum_horizon_months: int,
-    forecast_end_date: str | None,
-) -> pd.DatetimeIndex:
-    """Return at least N future months and optionally extend through an end month."""
-    if minimum_horizon_months < 1:
-        raise ValueError("minimum_horizon_months must be at least 1.")
-
-    minimum_end = (
-        last_real_date + pd.DateOffset(months=minimum_horizon_months)
-    ).to_period("M").to_timestamp()
-    end_date = minimum_end
-
-    if forecast_end_date:
-        configured_end = pd.Timestamp(forecast_end_date).to_period("M").to_timestamp()
-        end_date = max(end_date, configured_end)
-
-    return pd.date_range(
-        start=last_real_date + pd.offsets.MonthBegin(1),
-        end=end_date,
-        freq="MS",
-    )
-
-
 def generate_forecast(
     minimum_horizon_months: int = MIN_FORECAST_HORIZON_MONTHS,
     forecast_end_date: str | None = FORECAST_END_DATE,
@@ -93,12 +63,8 @@ def generate_forecast(
     model_path: Path = MODEL_PATH,
     scaler_path: Path = SCALER_PATH,
 ) -> pd.DataFrame:
-    """Generate an iterative forecast without fitting or modifying the model."""
     if not model_path.exists():
-        raise FileNotFoundError(
-            f"Missing production LSTM model: {model_path}. "
-            "Run training/train_lstm.py explicitly when retraining is required."
-        )
+        raise FileNotFoundError(f"Missing production LSTM model: {model_path}")
     if not scaler_path.exists():
         raise FileNotFoundError(f"Missing production target scaler: {scaler_path}")
 
@@ -106,9 +72,7 @@ def generate_forecast(
     model = load_model(model_path, compile=False)
     scaler_y = joblib.load(scaler_path)
 
-    input_shape = model.input_shape
-    if isinstance(input_shape, list):
-        input_shape = input_shape[0]
+    input_shape = model.input_shape[0] if isinstance(model.input_shape, list) else model.input_shape
     if len(input_shape) != 3:
         raise ValueError(f"Unexpected LSTM input shape: {input_shape}")
     if input_shape[1] not in (None, WINDOW_SIZE):
@@ -122,8 +86,7 @@ def generate_forecast(
             f"but inference provides {len(FEATURE_COLUMNS)}."
         )
 
-    scaled_target = scaler_y.transform(df[[TARGET_COL]]).reshape(-1)
-    df["_x_pasaj"] = scaled_target
+    df["_x_pasaj"] = scaler_y.transform(df[[TARGET_COL]]).reshape(-1)
     sequence = (
         df[FEATURE_COLUMNS]
         .tail(WINDOW_SIZE)
@@ -132,12 +95,12 @@ def generate_forecast(
     )
 
     last_real_date = df[DATE_COL].max()
+    base_year = int(df[DATE_COL].dt.year.min())
     future_dates = build_future_dates(
         last_real_date,
         minimum_horizon_months,
         forecast_end_date,
     )
-    base_year = int(df[DATE_COL].dt.year.min())
     df_future = df.copy()
 
     for next_date in future_dates:
@@ -146,9 +109,10 @@ def generate_forecast(
         year_norm = float(next_date.year - base_year)
 
         scaled_prediction = float(model.predict(sequence, verbose=0)[0][0])
-        prediction = float(scaler_y.inverse_transform([[scaled_prediction]])[0][0])
-        prediction = max(prediction, 0.0)
-
+        prediction = max(
+            float(scaler_y.inverse_transform([[scaled_prediction]])[0][0]),
+            0.0,
+        )
         next_row = {
             "Isla": ISLAND_NAME,
             DATE_COL: next_date,
@@ -159,29 +123,22 @@ def generate_forecast(
             "_x_pasaj": scaled_prediction,
         }
         df_future = pd.concat(
-            [df_future, pd.DataFrame([next_row])],
-            ignore_index=True,
+            [df_future, pd.DataFrame([next_row])], ignore_index=True
         )
-
         next_step = np.asarray(
-            [[scaled_prediction, month_sin, month_cos, year_norm]],
-            dtype=float,
+            [[scaled_prediction, month_sin, month_cos, year_norm]], dtype=float
         ).reshape(1, 1, len(FEATURE_COLUMNS))
         sequence = np.concatenate([sequence[:, 1:, :], next_step], axis=1)
 
     df_future["Phase"] = np.where(
-        df_future[DATE_COL] <= last_real_date,
-        "History",
-        "Forecast",
+        df_future[DATE_COL] <= last_real_date, "History", "Forecast"
     )
     return df_future
 
 
 def main() -> None:
-    """Generate and save the production LSTM forecast."""
     forecast = generate_forecast()
     forecast.to_csv(OUTPUT_PATH, index=False, encoding="utf-8-sig")
-
     forecast_rows = forecast[forecast["Phase"] == "Forecast"]
     last_history_date = forecast.loc[
         forecast["Phase"] == "History", DATE_COL
