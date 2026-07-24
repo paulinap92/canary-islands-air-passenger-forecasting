@@ -131,4 +131,4 @@ jobs:
           fi
 
           git commit -m "Update validated forecast outputs [skip ci]"
-          git push origin HEAD:${{ github.head_ref }}
+          git push
