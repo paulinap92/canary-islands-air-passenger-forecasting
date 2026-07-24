@@ -20,7 +20,8 @@ DATE_COL = "Fecha"
 DATA_PATH = Path("result_total_with_lags_coded.csv")
 MODEL_PATH = Path("models/xgb_best.pkl")
 OUTPUT_PATH = Path("forecast_total_canarias_xgb.csv")
-FORECAST_HORIZON_MONTHS = int(os.getenv("FORECAST_HORIZON_MONTHS", "12"))
+MIN_FORECAST_HORIZON_MONTHS = int(os.getenv("FORECAST_HORIZON_MONTHS", "12"))
+FORECAST_END_DATE = os.getenv("FORECAST_END_DATE")
 
 FEATURES = [
     "month_sin",
@@ -60,14 +61,38 @@ def load_history(data_path: Path = DATA_PATH) -> pd.DataFrame:
     return df
 
 
+def build_future_dates(
+    last_real_date: pd.Timestamp,
+    minimum_horizon_months: int,
+    forecast_end_date: str | None,
+) -> pd.DatetimeIndex:
+    """Return at least N future months and optionally extend through an end month."""
+    if minimum_horizon_months < 1:
+        raise ValueError("minimum_horizon_months must be at least 1.")
+
+    minimum_end = (
+        last_real_date + pd.DateOffset(months=minimum_horizon_months)
+    ).to_period("M").to_timestamp()
+    end_date = minimum_end
+
+    if forecast_end_date:
+        configured_end = pd.Timestamp(forecast_end_date).to_period("M").to_timestamp()
+        end_date = max(end_date, configured_end)
+
+    return pd.date_range(
+        start=last_real_date + pd.offsets.MonthBegin(1),
+        end=end_date,
+        freq="MS",
+    )
+
+
 def generate_forecast(
-    horizon_months: int = FORECAST_HORIZON_MONTHS,
+    minimum_horizon_months: int = MIN_FORECAST_HORIZON_MONTHS,
+    forecast_end_date: str | None = FORECAST_END_DATE,
     data_path: Path = DATA_PATH,
     model_path: Path = MODEL_PATH,
 ) -> pd.DataFrame:
     """Generate an iterative monthly forecast without retraining the model."""
-    if horizon_months < 1:
-        raise ValueError("horizon_months must be at least 1.")
     if not model_path.exists():
         raise FileNotFoundError(
             f"Missing production model {model_path}. "
@@ -87,10 +112,10 @@ def generate_forecast(
 
     df_future = df.copy()
     last_real_date = df_future[DATE_COL].max()
-    future_dates = pd.date_range(
-        start=last_real_date + pd.offsets.MonthBegin(1),
-        periods=horizon_months,
-        freq="MS",
+    future_dates = build_future_dates(
+        last_real_date,
+        minimum_horizon_months,
+        forecast_end_date,
     )
     base_year = int(df[DATE_COL].dt.year.min())
 
@@ -137,9 +162,14 @@ def main() -> None:
     forecast.to_csv(OUTPUT_PATH, index=False, encoding="utf-8-sig")
 
     forecast_rows = forecast[forecast["Phase"] == "Forecast"]
+    last_history_date = forecast.loc[
+        forecast["Phase"] == "History", DATE_COL
+    ].max()
+    final_forecast_date = forecast_rows[DATE_COL].max()
     print(
         f"Saved {len(forecast_rows)} XGBoost forecast months to {OUTPUT_PATH} "
-        f"(last real month: {forecast[forecast['Phase'] == 'History'][DATE_COL].max().date()})."
+        f"(last real month: {last_history_date.date()}, "
+        f"forecast end: {final_forecast_date.date()})."
     )
 
 
