@@ -42,14 +42,30 @@ jobs:
         env:
           FORECAST_HORIZON_MONTHS: "12"
           FORECAST_END_DATE: "2027-12-01"
-        run: python model_final_xgb.py
+        run: python model_final_xgb.py > xgb-inference.log 2>&1
+
+      - name: Upload XGBoost failure log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xgb-inference-failure
+          path: xgb-inference.log
+          retention-days: 3
 
       - name: Run LSTM production-model inference
         env:
           FORECAST_HORIZON_MONTHS: "12"
           FORECAST_END_DATE: "2027-12-01"
           TF_CPP_MIN_LOG_LEVEL: "2"
-        run: python model_final_lstm.py
+        run: python model_final_lstm.py > lstm-inference.log 2>&1
+
+      - name: Upload LSTM failure log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lstm-inference-failure
+          path: lstm-inference.log
+          retention-days: 3
 
       - name: Build forecast history
         run: python forecast_history.py
