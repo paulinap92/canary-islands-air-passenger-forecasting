@@ -21,7 +21,7 @@ jobs:
           cache-dependency-path: requirements-pipeline.txt
 
       - name: Install pipeline dependencies
-        run: pip install -r requirements-pipeline.txt
+        run: pip install --quiet -r requirements-pipeline.txt
 
       - name: Test forecast horizon
         run: |
@@ -33,20 +33,26 @@ jobs:
           assert len(dates) == 18
           assert dates[0] == pd.Timestamp("2026-07-01")
           assert dates[-1] == pd.Timestamp("2027-12-01")
-
           rolling = build_future_dates(pd.Timestamp("2027-06-01"), 12, "2027-12-01")
           assert rolling[-1] == pd.Timestamp("2028-06-01")
           print("Forecast horizon tests passed.")
           PY
 
-      - name: Run production-model inference
+      - name: Run XGBoost production-model inference
         env:
           FORECAST_HORIZON_MONTHS: "12"
           FORECAST_END_DATE: "2027-12-01"
-        run: |
-          python model_final_xgb.py
-          python model_final_lstm.py
-          python forecast_history.py
+        run: python model_final_xgb.py
+
+      - name: Run LSTM production-model inference
+        env:
+          FORECAST_HORIZON_MONTHS: "12"
+          FORECAST_END_DATE: "2027-12-01"
+          TF_CPP_MIN_LOG_LEVEL: "2"
+        run: python model_final_lstm.py
+
+      - name: Build forecast history
+        run: python forecast_history.py
 
       - name: Validate forecast outputs
         run: |
