@@ -24,7 +24,8 @@ SCALER_PATH = Path("models/scaler_y.pkl")
 OUTPUT_PATH = Path("forecast_total_canarias_lstm.csv")
 
 WINDOW_SIZE = 12
-FORECAST_HORIZON_MONTHS = int(os.getenv("FORECAST_HORIZON_MONTHS", "12"))
+MIN_FORECAST_HORIZON_MONTHS = int(os.getenv("FORECAST_HORIZON_MONTHS", "12"))
+FORECAST_END_DATE = os.getenv("FORECAST_END_DATE")
 FEATURE_COLUMNS = ["_x_pasaj", "month_sin", "month_cos", "year_norm"]
 
 
@@ -55,22 +56,44 @@ def load_history(data_path: Path = DATA_PATH) -> pd.DataFrame:
 
     df["month_sin"] = np.sin(2 * np.pi * df[DATE_COL].dt.month / 12.0)
     df["month_cos"] = np.cos(2 * np.pi * df[DATE_COL].dt.month / 12.0)
-
-    # The initial training notebook used a zero-based year normalization.
     base_year = int(df[DATE_COL].dt.year.min())
     df["year_norm"] = (df[DATE_COL].dt.year - base_year).astype(float)
     return df
 
 
+def build_future_dates(
+    last_real_date: pd.Timestamp,
+    minimum_horizon_months: int,
+    forecast_end_date: str | None,
+) -> pd.DatetimeIndex:
+    """Return at least N future months and optionally extend through an end month."""
+    if minimum_horizon_months < 1:
+        raise ValueError("minimum_horizon_months must be at least 1.")
+
+    minimum_end = (
+        last_real_date + pd.DateOffset(months=minimum_horizon_months)
+    ).to_period("M").to_timestamp()
+    end_date = minimum_end
+
+    if forecast_end_date:
+        configured_end = pd.Timestamp(forecast_end_date).to_period("M").to_timestamp()
+        end_date = max(end_date, configured_end)
+
+    return pd.date_range(
+        start=last_real_date + pd.offsets.MonthBegin(1),
+        end=end_date,
+        freq="MS",
+    )
+
+
 def generate_forecast(
-    horizon_months: int = FORECAST_HORIZON_MONTHS,
+    minimum_horizon_months: int = MIN_FORECAST_HORIZON_MONTHS,
+    forecast_end_date: str | None = FORECAST_END_DATE,
     data_path: Path = DATA_PATH,
     model_path: Path = MODEL_PATH,
     scaler_path: Path = SCALER_PATH,
 ) -> pd.DataFrame:
     """Generate an iterative forecast without fitting or modifying the model."""
-    if horizon_months < 1:
-        raise ValueError("horizon_months must be at least 1.")
     if not model_path.exists():
         raise FileNotFoundError(
             f"Missing production LSTM model: {model_path}. "
@@ -101,7 +124,6 @@ def generate_forecast(
 
     scaled_target = scaler_y.transform(df[[TARGET_COL]]).reshape(-1)
     df["_x_pasaj"] = scaled_target
-
     sequence = (
         df[FEATURE_COLUMNS]
         .tail(WINDOW_SIZE)
@@ -110,10 +132,10 @@ def generate_forecast(
     )
 
     last_real_date = df[DATE_COL].max()
-    future_dates = pd.date_range(
-        start=last_real_date + pd.offsets.MonthBegin(1),
-        periods=horizon_months,
-        freq="MS",
+    future_dates = build_future_dates(
+        last_real_date,
+        minimum_horizon_months,
+        forecast_end_date,
     )
     base_year = int(df[DATE_COL].dt.year.min())
     df_future = df.copy()
@@ -124,9 +146,7 @@ def generate_forecast(
         year_norm = float(next_date.year - base_year)
 
         scaled_prediction = float(model.predict(sequence, verbose=0)[0][0])
-        prediction = float(
-            scaler_y.inverse_transform([[scaled_prediction]])[0][0]
-        )
+        prediction = float(scaler_y.inverse_transform([[scaled_prediction]])[0][0])
         prediction = max(prediction, 0.0)
 
         next_row = {
@@ -166,9 +186,11 @@ def main() -> None:
     last_history_date = forecast.loc[
         forecast["Phase"] == "History", DATE_COL
     ].max()
+    final_forecast_date = forecast_rows[DATE_COL].max()
     print(
         f"Saved {len(forecast_rows)} LSTM forecast months to {OUTPUT_PATH} "
-        f"(last real month: {last_history_date.date()})."
+        f"(last real month: {last_history_date.date()}, "
+        f"forecast end: {final_forecast_date.date()})."
     )
 
 
