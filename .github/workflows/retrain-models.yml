@@ -32,6 +32,9 @@ jobs:
       - name: Install training dependencies
         run: pip install -r requirements-pipeline.txt
 
+      - name: Synchronize lag and rolling features
+        run: python -c "from download_agent import build_features; build_features()"
+
       - name: Train and compare XGBoost candidates
         run: python training/retrain_models.py
 
