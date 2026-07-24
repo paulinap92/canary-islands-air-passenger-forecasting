@@ -23,6 +23,9 @@ jobs:
       - name: Install pipeline dependencies
         run: pip install --quiet -r requirements-pipeline.txt
 
+      - name: Synchronize lag and rolling features
+        run: python -c "from download_agent import build_features; build_features()"
+
       - name: Test forecast horizon
         run: |
           python - <<'PY'
@@ -61,6 +64,8 @@ jobs:
           if-no-files-found: error
           retention-days: 7
           path: |
+            result_total_with_lags.csv
+            result_total_with_lags_coded.csv
             forecast_total_canarias_xgb.csv
             forecast_total_canarias_lstm.csv
             forecast_history.csv
@@ -70,7 +75,10 @@ jobs:
           python - <<'PY'
           import pandas as pd
 
+          expected_history_end = pd.Timestamp("2026-06-01")
+          expected_start = pd.Timestamp("2026-07-01")
           expected_end = pd.Timestamp("2027-12-01")
+
           for path in (
               "forecast_total_canarias_xgb.csv",
               "forecast_total_canarias_lstm.csv",
@@ -79,32 +87,24 @@ jobs:
               frame["Fecha"] = pd.to_datetime(frame["Fecha"])
               history = frame[frame["Phase"] == "History"]
               future = frame[frame["Phase"] == "Forecast"]
-              assert not history.empty, f"{path}: no history rows"
-              assert not future.empty, f"{path}: no forecast rows"
-              expected_start = history["Fecha"].max() + pd.offsets.MonthBegin(1)
-              assert future["Fecha"].min() == expected_start, (
+              assert history["Fecha"].max() == expected_history_end, (
                   path,
-                  future["Fecha"].min(),
-                  expected_start,
+                  history["Fecha"].max(),
               )
-              assert future["Fecha"].max() == expected_end, (
-                  path,
-                  future["Fecha"].max(),
-                  expected_end,
-              )
+              assert len(future) == 18, (path, len(future))
+              assert future["Fecha"].min() == expected_start
+              assert future["Fecha"].max() == expected_end
               assert future["Pasajeros"].notna().all(), f"{path}: NaN predictions"
               assert (future["Pasajeros"] >= 0).all(), f"{path}: negative predictions"
-              print(
-                  path,
-                  "history_end=", history["Fecha"].max().date(),
-                  "forecast_rows=", len(future),
-                  "forecast_end=", future["Fecha"].max().date(),
-              )
+              print(path, len(future), future["Fecha"].min(), future["Fecha"].max())
 
           forecast_history = pd.read_csv("forecast_history.csv", encoding="utf-8-sig")
-          assert {"XGB", "LSTM"}.issubset(set(forecast_history["model"]))
-          target_dates = pd.to_datetime(forecast_history["target_date"])
-          assert target_dates.max() == expected_end
+          assert set(forecast_history["model"]) == {"XGB", "LSTM"}
+          assert len(forecast_history) == 36
+          assert set(pd.to_datetime(forecast_history["forecast_origin"])) == {
+              expected_history_end
+          }
+          assert pd.to_datetime(forecast_history["target_date"]).max() == expected_end
           assert forecast_history["prediction"].notna().all()
           print("forecast_history.csv", len(forecast_history))
           PY
