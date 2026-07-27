@@ -23,6 +23,34 @@ def _prepare_forecast_frame(df: pd.DataFrame, model_name: str) -> pd.DataFrame:
     return result.dropna(subset=[DATE_COL, TARGET_COL]).sort_values(DATE_COL)
 
 
+def _prepare_total_canarias_history(df_full: pd.DataFrame) -> pd.DataFrame:
+    """Return the single Total Canarias history without double counting islands."""
+    required = {"Isla", "AEROPUERTO_DE_PROCEDENCIA", DATE_COL, TARGET_COL}
+    missing = sorted(required.difference(df_full.columns))
+    if missing:
+        raise KeyError(f"Historical data: missing columns {missing}")
+
+    island = df_full["Isla"].astype(str).str.strip().str.upper()
+    origin = (
+        df_full["AEROPUERTO_DE_PROCEDENCIA"]
+        .astype(str)
+        .str.strip()
+        .str.upper()
+    )
+
+    history = df_full[
+        (island == "TOTAL CANARIAS") & (origin == "TOTAL PASAJEROS")
+    ][[DATE_COL, TARGET_COL]].copy()
+    history[DATE_COL] = pd.to_datetime(history[DATE_COL], errors="coerce")
+    history[TARGET_COL] = pd.to_numeric(history[TARGET_COL], errors="coerce")
+
+    return (
+        history.dropna(subset=[DATE_COL, TARGET_COL])
+        .drop_duplicates(subset=[DATE_COL], keep="last")
+        .sort_values(DATE_COL)
+    )
+
+
 def plot_forecast_tab(
     df_full: pd.DataFrame,
     df_xgb: pd.DataFrame,
@@ -32,26 +60,16 @@ def plot_forecast_tab(
         st.warning("⚠️ No se pudieron cargar las predicciones.")
         return
 
-    df_hist = df_full[
-        df_full["AEROPUERTO_DE_PROCEDENCIA"].str.upper() == "TOTAL PASAJEROS"
-    ].copy()
-    df_hist[DATE_COL] = pd.to_datetime(df_hist[DATE_COL], errors="coerce")
-    df_hist[TARGET_COL] = pd.to_numeric(df_hist[TARGET_COL], errors="coerce")
-    df_hist = (
-        df_hist.dropna(subset=[DATE_COL, TARGET_COL])
-        .groupby(DATE_COL, as_index=False)[TARGET_COL]
-        .sum()
-        .sort_values(DATE_COL)
-    )
-    if df_hist.empty:
-        st.warning("No hay datos históricos de 'TOTAL PASAJEROS'.")
-        return
-
     try:
+        df_hist = _prepare_total_canarias_history(df_full)
         xgb = _prepare_forecast_frame(df_xgb, "XGBoost")
         lstm = _prepare_forecast_frame(df_lstm, "LSTM")
     except (KeyError, ValueError) as exc:
-        st.warning(f"⚠️ Predicciones inválidas: {exc}")
+        st.warning(f"⚠️ Datos de pronóstico inválidos: {exc}")
+        return
+
+    if df_hist.empty:
+        st.warning("No hay datos históricos de Total Canarias.")
         return
 
     last_real_date = df_hist[DATE_COL].max()
@@ -70,6 +88,7 @@ def plot_forecast_tab(
     if not available_end_dates:
         st.warning("No hay predicciones futuras disponibles.")
         return
+
     forecast_end = max(available_end_dates)
     st.subheader(
         "🔮 Pronóstico — datos reales y predicciones hasta "
@@ -79,6 +98,7 @@ def plot_forecast_tab(
     model_choice = st.radio(
         "Modelo", ["XGB", "LSTM", "Ambos"], horizontal=True
     )
+
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
@@ -100,6 +120,7 @@ def plot_forecast_tab(
                 line=dict(width=3, dash="dash"),
             )
         )
+
     if model_choice in {"LSTM", "Ambos"}:
         fig.add_trace(
             go.Scatter(
@@ -129,7 +150,7 @@ def plot_forecast_tab(
     st.plotly_chart(fig, use_container_width=True)
     st.caption(
         "Las líneas de XGB y LSTM muestran únicamente predicciones futuras. "
-        "La historia corresponde a datos reales, no a valores ajustados por los modelos."
+        "La historia corresponde a Total Canarias y no suma nuevamente las islas."
     )
 
     with st.expander("📋 Ver predicciones futuras"):
