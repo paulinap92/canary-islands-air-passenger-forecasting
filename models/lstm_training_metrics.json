@@ -1,0 +1,19 @@
+{
+  "island": "Total Canarias",
+  "source_data": "result_total.csv",
+  "history_start": "2022-01-01",
+  "history_end": "2026-06-01",
+  "first_sequence_target": "2023-01-01",
+  "final_training_sequences": 42,
+  "holdout_start": "2025-07-01",
+  "holdout_end": "2026-06-01",
+  "holdout_months": 12,
+  "best_epoch": 67,
+  "window_months": 12,
+  "units": 32,
+  "mae": 112774.75,
+  "rmse": 125929.99084395399,
+  "mape_pct": 5.149505345813752,
+  "model_path": "models/lstm_best.h5",
+  "scaler_path": "models/scaler_y.pkl"
+}

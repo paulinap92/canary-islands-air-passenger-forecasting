@@ -1,0 +1,14 @@
+{
+  "island": "Total Canarias",
+  "source_data": "result_total.csv",
+  "training_start": "2022-01-01",
+  "training_end": "2026-06-01",
+  "training_rows_final_model": 54,
+  "holdout_start": "2025-07-01",
+  "holdout_end": "2026-06-01",
+  "holdout_months": 12,
+  "mae": 86563.33333333333,
+  "rmse": 113027.501716719,
+  "mape_pct": 4.032526962286952,
+  "model_path": "models/xgb_best.pkl"
+}
