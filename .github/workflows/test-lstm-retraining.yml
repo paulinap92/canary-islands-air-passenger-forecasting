@@ -9,9 +9,7 @@ on:
       - model_final_xgb.py
       - model_train_lstm.py
       - model_final_lstm.py
-      - update_forecast_history.py
       - result_total.csv
-      - .github/workflows/test-lstm-retraining.yml
   workflow_dispatch:
 
 permissions:
@@ -62,7 +60,10 @@ jobs:
       - name: Append forecast snapshot
         run: python update_forecast_history.py
 
-      - name: Validate models forecasts and history
+      - name: Version models and results
+        run: python version_model_artifacts.py
+
+      - name: Validate generated outputs
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -80,6 +81,9 @@ jobs:
               Path("models/lstm_training_metrics.json"),
               Path("forecast_total_canarias_lstm.csv"),
               Path("forecast_history.csv"),
+              Path("models/model_registry.csv"),
+              Path("models/versions/xgb/current.json"),
+              Path("models/versions/lstm/current.json"),
           ]
           missing = [str(path) for path in output_paths if not path.exists()]
           if missing:
@@ -92,9 +96,7 @@ jobs:
           ].copy()
           assert not current.empty
           data_through = current["Fecha"].max().to_period("M").to_timestamp()
-          holdout_start = (
-              data_through.to_period("M") - 11
-          ).to_timestamp()
+          holdout_start = (data_through.to_period("M") - 11).to_timestamp()
           expected_dates = pd.Series(
               pd.date_range(
                   start=data_through + pd.offsets.MonthBegin(1),
@@ -158,26 +160,56 @@ jobs:
               "source_commit",
           }
           assert required_history.issubset(history.columns), history.columns
-          latest_run_id = history.iloc[-1]["run_id"]
-          latest = history[history["run_id"] == latest_run_id].copy()
+          latest_run = history.sort_values("generated_at_utc").iloc[-1]["run_id"]
+          latest = history[history["run_id"] == latest_run].copy()
           assert set(latest["model"]) == {"XGB", "LSTM"}, latest
           assert len(latest) == 24, len(latest)
           assert latest["data_through"].nunique() == 1
           assert latest["data_through"].iloc[0] == data_through
-          for model in ("XGB", "LSTM"):
-              model_rows = latest[latest["model"] == model].sort_values("target_month")
-              assert len(model_rows) == 12
-              assert model_rows["target_month"].reset_index(drop=True).equals(expected_dates)
-              assert model_rows["horizon_months"].tolist() == list(range(1, 13))
+
+          registry = pd.read_csv("models/model_registry.csv", encoding="utf-8-sig")
+          required_registry = {
+              "model_version",
+              "model",
+              "created_at_utc",
+              "data_through",
+              "mae",
+              "rmse",
+              "mape_pct",
+              "status",
+              "git_commit",
+              "version_path",
+          }
+          assert required_registry.issubset(registry.columns), registry.columns
+          active = registry[registry["status"] == "active"]
+          assert set(active["model"]) == {"XGB", "LSTM"}, active
+          assert active.groupby("model").size().eq(1).all(), active
+
+          for model in ("xgb", "lstm"):
+              pointer = json.loads(
+                  Path(f"models/versions/{model}/current.json").read_text(
+                      encoding="utf-8"
+                  )
+              )
+              version_dir = Path(pointer["version_path"])
+              assert version_dir.exists(), version_dir
+              assert (version_dir / "metadata.json").exists()
+              assert (version_dir / "metrics.json").exists()
+              assert (version_dir / "forecast.csv").exists()
+              assert (version_dir / ("model.pkl" if model == "xgb" else "model.h5")).exists()
+              if model == "xgb":
+                  assert (version_dir / "feature_importance.csv").exists()
+              else:
+                  assert (version_dir / "scaler_y.pkl").exists()
 
           print("XGBoost metrics:")
           print(json.dumps(xgb_metrics, indent=2, ensure_ascii=False))
           print("LSTM metrics:")
           print(json.dumps(lstm_metrics, indent=2, ensure_ascii=False))
-          print(f"History rows: {len(history)} | latest run: {latest_run_id}")
+          print(active[["model", "model_version", "version_path"]].to_string(index=False))
           PY
 
-      - name: Commit generated models forecasts and history
+      - name: Commit generated models forecasts history and versions
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -189,19 +221,21 @@ jobs:
             models/scaler_y.pkl \
             models/lstm_training_metrics.json \
             forecast_total_canarias_lstm.csv \
-            forecast_history.csv
+            forecast_history.csv \
+            models/model_registry.csv \
+            models/versions
 
           if git diff --cached --quiet; then
             echo "Generated outputs are already up to date."
           else
-            git commit -m "Update trained models forecasts and history [skip ci]"
+            git commit -m "Version trained models and results [skip ci]"
             git push origin HEAD:model-retraining
           fi
 
       - name: Upload generated outputs
         uses: actions/upload-artifact@v4
         with:
-          name: retrained-models-forecasts-and-history
+          name: retrained-models-forecasts-history-and-versions
           if-no-files-found: error
           retention-days: 14
           path: |
@@ -213,3 +247,5 @@ jobs:
             models/lstm_training_metrics.json
             forecast_total_canarias_lstm.csv
             forecast_history.csv
+            models/model_registry.csv
+            models/versions
