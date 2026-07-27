@@ -301,12 +301,22 @@ def plot_forecast_tab(
     if "LSTM" in models:
         _add_current_forecast(figure, df_lstm, "LSTM", last_real_date)
 
+    boundary_date = pd.Timestamp(last_real_date).to_pydatetime()
     figure.add_vline(
-        x=last_real_date,
+        x=boundary_date,
         line_dash="dot",
         line_color="gray",
-        annotation_text="Último dato real",
-        annotation_position="top left",
+    )
+    figure.add_annotation(
+        x=boundary_date,
+        y=1,
+        xref="x",
+        yref="paper",
+        text="Último dato real",
+        showarrow=False,
+        xanchor="right",
+        yanchor="bottom",
+        font={"color": "gray"},
     )
     figure.update_layout(
         height=570,
