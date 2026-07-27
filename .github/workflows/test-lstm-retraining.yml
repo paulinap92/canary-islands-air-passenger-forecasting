@@ -1,10 +1,12 @@
-name: Test LSTM retraining
+name: Retrain models and publish forecasts
 
 on:
   push:
     branches:
       - model-retraining
     paths:
+      - model_train_xgb.py
+      - model_final_xgb.py
       - model_train_lstm.py
       - model_final_lstm.py
       - result_total.csv
@@ -12,16 +14,19 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  train-and-forecast-lstm:
+  retrain-and-publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     steps:
       - name: Check out branch
         uses: actions/checkout@v4
+        with:
+          ref: model-retraining
+          fetch-depth: 0
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
@@ -32,7 +37,15 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pandas numpy scikit-learn joblib tensorflow
+          python -m pip install pandas numpy scikit-learn joblib xgboost tensorflow
+
+      - name: Train XGBoost
+        run: python model_train_xgb.py
+
+      - name: Generate XGBoost forecast
+        env:
+          FORECAST_MONTHS: "12"
+        run: python model_final_xgb.py
 
       - name: Train LSTM
         env:
@@ -45,7 +58,7 @@ jobs:
           FORECAST_MONTHS: "12"
         run: python model_final_lstm.py
 
-      - name: Validate outputs
+      - name: Validate models and forecasts
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -54,51 +67,98 @@ jobs:
           import pandas as pd
           from tensorflow.keras.models import load_model
 
-          required = [
+          output_paths = [
+              Path("models/xgb_best.pkl"),
+              Path("models/xgb_training_metrics.json"),
+              Path("forecast_total_canarias_xgb.csv"),
               Path("models/lstm_best.h5"),
               Path("models/scaler_y.pkl"),
               Path("models/lstm_training_metrics.json"),
               Path("forecast_total_canarias_lstm.csv"),
           ]
-          missing = [str(path) for path in required if not path.exists()]
+          missing = [str(path) for path in output_paths if not path.exists()]
           if missing:
               raise SystemExit(f"Missing outputs: {missing}")
 
-          metrics = json.loads(required[2].read_text(encoding="utf-8"))
-          assert metrics["history_end"] == "2026-06-01", metrics
-          assert metrics["holdout_start"] == "2025-07-01", metrics
-          assert metrics["holdout_end"] == "2026-06-01", metrics
-          assert metrics["holdout_months"] == 12, metrics
+          xgb_metrics = json.loads(
+              Path("models/xgb_training_metrics.json").read_text(encoding="utf-8")
+          )
+          lstm_metrics = json.loads(
+              Path("models/lstm_training_metrics.json").read_text(encoding="utf-8")
+          )
 
-          model = load_model(required[0], compile=False)
-          scaler = joblib.load(required[1])
-          assert tuple(model.input_shape[1:]) == (12, 4), model.input_shape
+          for metrics in (xgb_metrics, lstm_metrics):
+              end_key = "training_end" if "training_end" in metrics else "history_end"
+              assert metrics[end_key] == "2026-06-01", metrics
+              assert metrics["holdout_start"] == "2025-07-01", metrics
+              assert metrics["holdout_end"] == "2026-06-01", metrics
+              assert metrics["holdout_months"] == 12, metrics
+
+          xgb_model = joblib.load("models/xgb_best.pkl")
+          assert getattr(xgb_model, "n_features_in_", 17) == 17
+
+          lstm_model = load_model("models/lstm_best.h5", compile=False)
+          scaler = joblib.load("models/scaler_y.pkl")
+          assert tuple(lstm_model.input_shape[1:]) == (12, 4), lstm_model.input_shape
           assert hasattr(scaler, "transform")
 
-          forecast = pd.read_csv(required[3], parse_dates=["Fecha"])
-          future = forecast[forecast["Phase"] == "Forecast"].copy()
-          assert len(future) == 12, len(future)
-          assert future["Fecha"].min() == pd.Timestamp("2026-07-01")
-          assert future["Fecha"].max() == pd.Timestamp("2027-06-01")
-          expected = pd.date_range("2026-07-01", periods=12, freq="MS")
-          assert future["Fecha"].reset_index(drop=True).equals(pd.Series(expected))
-          assert future["Pasajeros"].notna().all()
-          assert (future["Pasajeros"] >= 0).all()
+          expected_dates = pd.Series(
+              pd.date_range("2026-07-01", periods=12, freq="MS")
+          )
+          for path in (
+              Path("forecast_total_canarias_xgb.csv"),
+              Path("forecast_total_canarias_lstm.csv"),
+          ):
+              forecast = pd.read_csv(path, parse_dates=["Fecha"])
+              required_columns = {"Fecha", "Pasajeros", "Phase"}
+              assert required_columns.issubset(forecast.columns), forecast.columns
+              future = (
+                  forecast[forecast["Phase"] == "Forecast"]
+                  .sort_values("Fecha")
+                  .reset_index(drop=True)
+              )
+              assert len(future) == 12, (path, len(future))
+              assert future["Fecha"].reset_index(drop=True).equals(expected_dates), path
+              assert future["Pasajeros"].notna().all(), path
+              assert (future["Pasajeros"] >= 0).all(), path
 
-          print(json.dumps(metrics, indent=2, ensure_ascii=False))
-          print(future[["Fecha", "Pasajeros"]].to_string(index=False))
+          print("XGBoost metrics:")
+          print(json.dumps(xgb_metrics, indent=2, ensure_ascii=False))
+          print("LSTM metrics:")
+          print(json.dumps(lstm_metrics, indent=2, ensure_ascii=False))
           PY
 
-      - name: Upload LSTM test outputs
+      - name: Commit generated models and forecasts
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            models/xgb_best.pkl \
+            models/xgb_training_metrics.json \
+            forecast_total_canarias_xgb.csv \
+            models/lstm_best.h5 \
+            models/scaler_y.pkl \
+            models/lstm_training_metrics.json \
+            forecast_total_canarias_lstm.csv
+
+          if git diff --cached --quiet; then
+            echo "Generated outputs are already up to date."
+          else
+            git commit -m "Update trained models and forecasts [skip ci]"
+            git push origin HEAD:model-retraining
+          fi
+
+      - name: Upload generated outputs
         uses: actions/upload-artifact@v4
         with:
-          name: lstm-retraining-test
+          name: retrained-models-and-forecasts
           if-no-files-found: error
           retention-days: 14
           path: |
+            models/xgb_best.pkl
+            models/xgb_training_metrics.json
+            forecast_total_canarias_xgb.csv
             models/lstm_best.h5
             models/scaler_y.pkl
             models/lstm_training_metrics.json
             forecast_total_canarias_lstm.csv
-
-# Retriggered after fixing the workflow definition.
