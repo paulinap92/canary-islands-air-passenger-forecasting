@@ -4,7 +4,13 @@ import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
 
-def plot_forecast_tab(df_full: pd.DataFrame, df_xgb: pd.DataFrame, df_lstm: pd.DataFrame):
+
+def plot_forecast_tab(
+    df_full: pd.DataFrame,
+    df_xgb: pd.DataFrame,
+    df_lstm: pd.DataFrame,
+    df_forecast_history: pd.DataFrame,
+):
     """Render forecast tab: historical Total Canarias + XGB + LSTM."""
     st.subheader("🔮 Predicción — Histórico + XGB + LSTM (Total Canarias)")
 
@@ -30,6 +36,7 @@ def plot_forecast_tab(df_full: pd.DataFrame, df_xgb: pd.DataFrame, df_lstm: pd.D
     lstm_pred = df_lstm[df_lstm["Fecha"] > last_real_date]
 
     model_choice = st.radio("Modelo", ["XGB", "LSTM", "Ambos"], horizontal=True)
+    show_history = st.checkbox("Mostrar historia anterior", value=False)
 
     fig = go.Figure()
 
@@ -63,6 +70,41 @@ def plot_forecast_tab(df_full: pd.DataFrame, df_xgb: pd.DataFrame, df_lstm: pd.D
             line=dict(color="green", width=3, dash="dot"),
         ))
 
+    # Optional legacy snapshot overlay. This does not modify current forecasts.
+    if show_history and df_forecast_history is not None and not df_forecast_history.empty:
+        history = df_forecast_history.copy()
+        history["target_month"] = pd.to_datetime(history["target_month"], errors="coerce")
+        history["predicted_passengers"] = pd.to_numeric(
+            history["predicted_passengers"], errors="coerce"
+        )
+        history = history.dropna(subset=["target_month", "predicted_passengers"])
+
+        if model_choice in ["XGB", "Ambos"]:
+            xgb_history = history[history["model"].str.upper() == "XGB"].sort_values(
+                "target_month"
+            )
+            if not xgb_history.empty:
+                fig.add_trace(go.Scatter(
+                    x=xgb_history["target_month"],
+                    y=xgb_history["predicted_passengers"],
+                    name="XGB (historia 2025-09)",
+                    line=dict(color="orange", width=2, dash="dot"),
+                    opacity=0.45,
+                ))
+
+        if model_choice in ["LSTM", "Ambos"]:
+            lstm_history = history[history["model"].str.upper() == "LSTM"].sort_values(
+                "target_month"
+            )
+            if not lstm_history.empty:
+                fig.add_trace(go.Scatter(
+                    x=lstm_history["target_month"],
+                    y=lstm_history["predicted_passengers"],
+                    name="LSTM (historia 2025-09)",
+                    line=dict(color="green", width=2, dash="dash"),
+                    opacity=0.45,
+                ))
+
     fig.update_layout(
         height=500,
         template="simple_white",
@@ -72,31 +114,22 @@ def plot_forecast_tab(df_full: pd.DataFrame, df_xgb: pd.DataFrame, df_lstm: pd.D
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # --------------------------------------------------------
-    # 📋 CLEAN TABLE (NO MERGE, NO GARBAGE)
-    # --------------------------------------------------------
     with st.expander("📋 Ver datos"):
-
-        # Clean XGB display
         xgb_display = df_xgb[["Fecha", "Pasajeros", "Phase"]].copy()
         xgb_display["Fecha"] = xgb_display["Fecha"].dt.to_period("M").astype(str)
         xgb_display = xgb_display.sort_values("Fecha")
 
-        # Clean LSTM display
         lstm_display = df_lstm[["Fecha", "Pasajeros", "Phase"]].copy()
         lstm_display["Fecha"] = lstm_display["Fecha"].dt.to_period("M").astype(str)
         lstm_display = lstm_display.sort_values("Fecha")
 
-        # ------------------------------------
         if model_choice == "XGB":
             st.markdown("### 🔸 Datos — XGB")
             st.dataframe(xgb_display, use_container_width=True)
-
         elif model_choice == "LSTM":
             st.markdown("### 🟢 Datos — LSTM")
             st.dataframe(lstm_display, use_container_width=True)
-
-        else:  # Ambos
+        else:
             st.markdown("### 🔸 Datos — XGB")
             st.dataframe(xgb_display, use_container_width=True)
             st.markdown("### 🟢 Datos — LSTM")
