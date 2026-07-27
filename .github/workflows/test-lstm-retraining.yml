@@ -21,3 +21,82 @@ jobs:
 
     steps:
       - name: Check out branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pandas numpy scikit-learn joblib tensorflow
+
+      - name: Train LSTM
+        env:
+          TF_CPP_MIN_LOG_LEVEL: "2"
+        run: python model_train_lstm.py
+
+      - name: Generate LSTM forecast
+        env:
+          TF_CPP_MIN_LOG_LEVEL: "2"
+          FORECAST_MONTHS: "12"
+        run: python model_final_lstm.py
+
+      - name: Validate outputs
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          import joblib
+          import pandas as pd
+          from tensorflow.keras.models import load_model
+
+          required = [
+              Path("models/lstm_best.h5"),
+              Path("models/scaler_y.pkl"),
+              Path("models/lstm_training_metrics.json"),
+              Path("forecast_total_canarias_lstm.csv"),
+          ]
+          missing = [str(path) for path in required if not path.exists()]
+          if missing:
+              raise SystemExit(f"Missing outputs: {missing}")
+
+          metrics = json.loads(required[2].read_text(encoding="utf-8"))
+          assert metrics["history_end"] == "2026-06-01", metrics
+          assert metrics["holdout_start"] == "2025-07-01", metrics
+          assert metrics["holdout_end"] == "2026-06-01", metrics
+          assert metrics["holdout_months"] == 12, metrics
+
+          model = load_model(required[0], compile=False)
+          scaler = joblib.load(required[1])
+          assert tuple(model.input_shape[1:]) == (12, 4), model.input_shape
+          assert hasattr(scaler, "transform")
+
+          forecast = pd.read_csv(required[3], parse_dates=["Fecha"])
+          future = forecast[forecast["Phase"] == "Forecast"].copy()
+          assert len(future) == 12, len(future)
+          assert future["Fecha"].min() == pd.Timestamp("2026-07-01")
+          assert future["Fecha"].max() == pd.Timestamp("2027-06-01")
+          expected = pd.date_range("2026-07-01", periods=12, freq="MS")
+          assert future["Fecha"].reset_index(drop=True).equals(pd.Series(expected))
+          assert future["Pasajeros"].notna().all()
+          assert (future["Pasajeros"] >= 0).all()
+
+          print(json.dumps(metrics, indent=2, ensure_ascii=False))
+          print(future[["Fecha", "Pasajeros"]].to_string(index=False))
+          PY
+
+      - name: Upload LSTM test outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: lstm-retraining-test
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            models/lstm_best.h5
+            models/scaler_y.pkl
+            models/lstm_training_metrics.json
+            forecast_total_canarias_lstm.csv
