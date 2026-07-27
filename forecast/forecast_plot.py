@@ -1,8 +1,65 @@
 """Forecast tab: show historical + XGB + LSTM predictions."""
 
-import streamlit as st
-import plotly.graph_objects as go
+import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
+import streamlit as st
+
+
+def _render_history_metrics(
+    history: pd.DataFrame,
+    df_xgb: pd.DataFrame,
+    model_choice: str,
+) -> None:
+    """Compare legacy forecasts with real values already available."""
+    actual = df_xgb[["Fecha", "Pasajeros", "Phase"]].copy()
+    actual["Fecha"] = pd.to_datetime(actual["Fecha"], errors="coerce")
+    actual["Pasajeros"] = pd.to_numeric(actual["Pasajeros"], errors="coerce")
+    actual = (
+        actual[actual["Phase"].astype(str).str.upper() == "HISTORY"]
+        .dropna(subset=["Fecha", "Pasajeros"])
+        .drop_duplicates(subset=["Fecha"], keep="last")
+        .rename(columns={"Fecha": "target_month", "Pasajeros": "actual_passengers"})
+    )
+
+    evaluated = history.merge(
+        actual[["target_month", "actual_passengers"]],
+        on="target_month",
+        how="inner",
+    )
+
+    selected_models = ["XGB", "LSTM"] if model_choice == "Ambos" else [model_choice]
+    evaluated = evaluated[evaluated["model"].str.upper().isin(selected_models)].copy()
+
+    st.markdown("### 📏 Métricas de la predicción histórica")
+    if evaluated.empty:
+        st.info("Todavía no hay meses históricos que se puedan comparar con datos reales.")
+        return
+
+    for model in selected_models:
+        model_data = evaluated[evaluated["model"].str.upper() == model].copy()
+        if model_data.empty:
+            continue
+
+        error = model_data["predicted_passengers"] - model_data["actual_passengers"]
+        absolute_error = error.abs()
+        mae = float(absolute_error.mean())
+        rmse = float(np.sqrt(np.mean(np.square(error))))
+        nonzero = model_data["actual_passengers"] != 0
+        mape = float(
+            (
+                absolute_error[nonzero]
+                / model_data.loc[nonzero, "actual_passengers"]
+                * 100.0
+            ).mean()
+        )
+
+        st.markdown(f"**{model}**")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Meses evaluados", str(len(model_data)))
+        c2.metric("MAE", f"{mae:,.0f}".replace(",", " "))
+        c3.metric("RMSE", f"{rmse:,.0f}".replace(",", " "))
+        c4.metric("MAPE", f"{mape:.2f}%")
 
 
 def plot_forecast_tab(
@@ -71,6 +128,7 @@ def plot_forecast_tab(
         ))
 
     # Optional legacy snapshot overlay. This does not modify current forecasts.
+    history = pd.DataFrame()
     if show_history and df_forecast_history is not None and not df_forecast_history.empty:
         history = df_forecast_history.copy()
         history["target_month"] = pd.to_datetime(history["target_month"], errors="coerce")
@@ -113,6 +171,9 @@ def plot_forecast_tab(
         margin=dict(l=20, r=20, t=40, b=20),
     )
     st.plotly_chart(fig, use_container_width=True)
+
+    if show_history and not history.empty:
+        _render_history_metrics(history, df_xgb, model_choice)
 
     with st.expander("📋 Ver datos"):
         xgb_display = df_xgb[["Fecha", "Pasajeros", "Phase"]].copy()
