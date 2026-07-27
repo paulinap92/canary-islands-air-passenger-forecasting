@@ -1,21 +1,20 @@
 # ==============================================================
-# 🧭 Pronóstico final XGBoost — generación corregida de lags
+# 🧭 Pronóstico final XGBoost — uso del modelo guardado
 # ==============================================================
 
-import pandas as pd
-import numpy as np
+from pathlib import Path
+
+import joblib
 import matplotlib.pyplot as plt
-from xgboost import XGBRegressor
-from sklearn.pipeline import Pipeline
-from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import StandardScaler
-from sklearn.compose import TransformedTargetRegressor
+import numpy as np
+import pandas as pd
 
 # === PARÁMETROS ===
 ISLAND_NAME = "Total Canarias"
 TARGET_COL = "Pasajeros"
 DATE_COL = "Fecha"
 HORIZON_END = "2026-12-01"
+MODEL_PATH = Path("models/xgb_best.pkl")
 
 # === Datos de entrada ===
 df = pd.read_csv("result_total_with_lags_coded.csv", encoding="utf-8-sig")
@@ -26,34 +25,26 @@ df = df[df["Isla"] == ISLAND_NAME].reset_index(drop=True)
 # 🔹 Tendencia a largo plazo
 df["month_idx"] = np.arange(len(df))
 
-# 🔹 Características para el modelo
+# 🔹 Características esperadas por el modelo guardado
 FEATURES = [
-    "month_idx", "month_sin", "month_cos", "year_norm",
+    "month_sin", "month_cos", "year_norm",
     *[f"lag_{i}" for i in range(1, 13)],
     "roll3", "roll6"
 ]
 
-X_train = df[FEATURES].values
-y_train = df[TARGET_COL].values
-print(y_train)
+# 🔹 Cargar el modelo existente; este archivo no entrena modelos
+if not MODEL_PATH.exists():
+    raise FileNotFoundError(f"No se encontró el modelo guardado: {MODEL_PATH}")
 
-# 🔹 Modelo XGB
-xgb = Pipeline([
-    ("imputer", SimpleImputer(strategy="median")),
-    ("model", XGBRegressor(
-        n_estimators=800,
-        learning_rate=0.03,
-        max_depth=5,
-        subsample=0.9,
-        colsample_bytree=0.9,
-        objective="reg:squarederror",
-        random_state=42
-    ))
-])
+model = joblib.load(MODEL_PATH)
+expected_features = getattr(model, "n_features_in_", None)
+if expected_features is not None and expected_features != len(FEATURES):
+    raise ValueError(
+        f"El modelo guardado espera {expected_features} variables, "
+        f"pero el pronóstico proporciona {len(FEATURES)}."
+    )
 
-model = TransformedTargetRegressor(regressor=xgb, transformer=StandardScaler())
-model.fit(X_train, y_train)
-print("✅ Modelo entrenado con datos históricos")
+print(f"✅ Modelo cargado desde {MODEL_PATH}")
 
 # ==============================================================
 # Pronóstico iterativo — lags corregidos
@@ -124,3 +115,4 @@ df_future.to_csv("forecast_total_canarias_xgb.csv", index=False, encoding="utf-8
 print("💾 Guardado forecast_total_canarias_fixedlags.csv")
 
 print("\n📈 Últimos 12 meses del pronóstico:")
+print(df_future[df_future["Phase"] == "Forecast"].tail(12)[[DATE_COL, TARGET_COL]])
