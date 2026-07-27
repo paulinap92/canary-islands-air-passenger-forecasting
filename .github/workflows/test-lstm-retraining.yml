@@ -1,0 +1,23 @@
+name: Test LSTM retraining
+
+on:
+  push:
+    branches:
+      - model-retraining
+    paths:
+      - model_train_lstm.py
+      - model_final_lstm.py
+      - result_total.csv
+      - .github/workflows/test-lstm-retraining.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  train-and-forecast-lstm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out branch
