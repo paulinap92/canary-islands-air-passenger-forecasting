@@ -100,3 +100,5 @@ jobs:
             models/scaler_y.pkl
             models/lstm_training_metrics.json
             forecast_total_canarias_lstm.csv
+
+# Retriggered after fixing the workflow definition.
