@@ -1,9 +1,9 @@
 """Train and persist the final XGBoost model for Total Canarias.
 
-The script reads the current monthly totals, creates the same lag and rolling
-features used by the final forecast model, excludes COVID target rows, evaluates
-on the latest 12 months and finally fits the persisted model on all eligible
-post-COVID target rows.
+The script reads the current monthly totals, creates the lag and rolling
+features used in ``my_models_trials.ipynb``, excludes COVID target rows,
+evaluates on the latest 12 months and finally fits the persisted model on all
+eligible post-COVID target rows.
 """
 
 from __future__ import annotations
@@ -15,11 +15,9 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.compose import TransformedTargetRegressor
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import mean_absolute_error, root_mean_squared_error
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
 from xgboost import XGBRegressor
 
 ISLAND_NAME = "Total Canarias"
@@ -42,28 +40,24 @@ FEATURES = [
 ]
 
 
-def build_model() -> TransformedTargetRegressor:
-    """Create the final XGBoost configuration selected for production."""
-    xgb = Pipeline(
+def build_model() -> Pipeline:
+    """Create the XGBoost pipeline used in ``my_models_trials.ipynb``."""
+    return Pipeline(
         [
             ("imputer", SimpleImputer(strategy="median")),
             (
-                "model",
+                "xgb",
                 XGBRegressor(
-                    n_estimators=800,
-                    learning_rate=0.03,
-                    max_depth=5,
+                    n_estimators=500,
+                    learning_rate=0.05,
+                    max_depth=4,
                     subsample=0.9,
                     colsample_bytree=0.9,
-                    objective="reg:squarederror",
                     random_state=42,
+                    objective="reg:squarederror",
                 ),
             ),
         ]
-    )
-    return TransformedTargetRegressor(
-        regressor=xgb,
-        transformer=StandardScaler(),
     )
 
 
