@@ -3,7 +3,7 @@
 import streamlit as st
 import pandas as pd
 
-from data.loader import load_main_dataset, load_forecasts
+from data.loader import load_main_dataset, load_forecasts, load_forecast_history
 from ui.map import draw_island_map
 from ui.images import show_island_image, show_image_license
 from kpi.kpi_calculator import calculate_kpi_full
@@ -22,6 +22,7 @@ st.title("🗺️ Análisis de pasajeros aéreos en las Islas Canarias")
 # --------------------------------------------------
 dfp = load_main_dataset()
 df_xgb, df_lstm = load_forecasts()
+df_forecast_history = load_forecast_history()
 
 
 # --------------------------------------------------
@@ -95,12 +96,13 @@ dfv = dfp[dfp["Isla"].str.contains(selected_island, case=False, na=False)].copy(
 
 
 # --------------------------------------------------
-# SLIDER → moved inside tabs (ONLY 1–3)
+# TABS
 # --------------------------------------------------
-# IMPORTANT: Slider no longer here.
-
-
-# --------------------------------------------------
-# TABS (slider lives INSIDE display_tabs)
-# --------------------------------------------------
-display_tabs(dfv, dfp, df_xgb, df_lstm, selected_island)
+display_tabs(
+    dfv,
+    dfp,
+    df_xgb,
+    df_lstm,
+    selected_island,
+    df_forecast_history,
+)
