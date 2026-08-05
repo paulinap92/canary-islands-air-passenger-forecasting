@@ -1,0 +1,73 @@
+name: Weekly data and forecast update
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Every Thursday at 06:00 UTC.
+    - cron: "0 6 * * 4"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: weekly-data-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out model-retraining branch
+        uses: actions/checkout@v4
+        with:
+          ref: model-retraining
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-pipeline.txt
+
+      - name: Install pipeline dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-pipeline.txt
+
+      - name: Download data and refresh forecasts
+        env:
+          FORECAST_MONTHS: "12"
+          TF_CPP_MIN_LOG_LEVEL: "2"
+        run: python monthly_update.py
+
+      - name: Commit updated data and forecasts
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          find data -maxdepth 1 -type f -name '*.xlsx' -print0 | xargs -0 -r git add
+
+          for path in \
+            result.csv \
+            result_total.csv \
+            result_total_with_lags.csv \
+            result_total_with_lags_coded.csv \
+            forecast_total_canarias_xgb.csv \
+            forecast_total_canarias_lstm.csv \
+            forecast_history.csv
+          do
+            if [ -e "$path" ]; then
+              git add "$path"
+            fi
+          done
+
+          if git diff --cached --quiet; then
+            echo "No new source data or forecast changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Update weekly passenger data and forecasts [skip ci]"
+          git push origin HEAD:model-retraining
