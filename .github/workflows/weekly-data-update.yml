@@ -2,11 +2,6 @@ name: Weekly data and forecast update
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/weekly-data-update.yml
   schedule:
     # Every Thursday at 06:50 UTC (08:50 Spanish summer time).
     - cron: "50 6 * * 4"
@@ -42,7 +37,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-pipeline.txt
 
-      - name: Download data and refresh forecasts
+      - name: Check for new monthly data and update only when needed
         env:
           FORECAST_MONTHS: "12"
           TF_CPP_MIN_LOG_LEVEL: "2"
@@ -70,7 +65,7 @@ jobs:
           done
 
           if git diff --cached --quiet; then
-            echo "No new source data or forecast changes to commit."
+            echo "No new monthly data; nothing to commit."
             exit 0
           fi
 
