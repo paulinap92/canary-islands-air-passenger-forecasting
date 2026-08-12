@@ -1,4 +1,4 @@
-"""Refresh passenger data and forecasts without retraining production models."""
+"""Refresh passenger data and forecasts only when new source data is available."""
 
 from __future__ import annotations
 
@@ -18,34 +18,29 @@ def run_command(script: str) -> None:
 
 
 def main() -> None:
-    """Download new data, rebuild features, and refresh production forecasts."""
+    """Check for new data; update everything only when a new XLSX is found."""
     os.environ.pop("RUN_RETRAIN", None)
 
-    new_data_available = True
     agent = PassengerAgent()
     try:
         agent.run()
     except RuntimeError as exc:
         if NO_NEW_DATA_MESSAGE not in str(exc):
             raise
-        new_data_available = False
-        print("No new WebTenerife monthly file is available.")
+        print("No new WebTenerife monthly file is available. Nothing else to do.")
+        return
 
-    # Keep derived files synchronized even when no remote file is available.
+    # A new source file was downloaded and result CSVs were updated.
     build_features()
 
     # Inference only: persisted production models are loaded without fitting.
     run_command("model_final_xgb.py")
     run_command("model_final_lstm.py")
 
-    if new_data_available:
-        run_id, added_rows = append_snapshot()
-        print(f"Forecast history run: {run_id}; new rows: {added_rows}.")
-        print("Monthly source data and derived features were updated.")
-    else:
-        print("No history snapshot added because the source data did not change.")
-
-    print("Production forecasts were refreshed without retraining.")
+    run_id, added_rows = append_snapshot()
+    print(f"Forecast history run: {run_id}; new rows: {added_rows}.")
+    print("Monthly source data, derived features, and forecasts were updated.")
+    print("No model retraining was performed.")
 
 
 if __name__ == "__main__":
