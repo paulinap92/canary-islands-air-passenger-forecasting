@@ -24,6 +24,7 @@ SPANISH_MONTHS = [
     "julio","agosto","septiembre","octubre","noviembre","diciembre"
 ]
 MESES_MAP = {m:i+1 for i, m in enumerate(SPANISH_MONTHS)}
+EXPECTED_ISLANDS = {"Gran Canaria", "Fuerteventura", "Lanzarote", "Tenerife", "La Palma", "Total Canarias"}
 
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(BACKUP_DIR, exist_ok=True)
@@ -104,7 +105,7 @@ def split_islands_from_combined_table(df: pd.DataFrame):
     return positions
 
 
-def extract_isla_data(df, positions, nrows=40):
+def extract_isla_data(df, positions, nrows=None):
     """
     Crea un DataFrame para cada isla, combinando etiquetas y valores.
     Devuelve dict: { "TENERIFE": df_isla, ... }
@@ -115,8 +116,26 @@ def extract_isla_data(df, positions, nrows=40):
         row = pos['row']
         col = pos['col']
 
-        labels = df.iloc[row + 2: row + 2 + nrows, 0].reset_index(drop=True)
-        values = df.iloc[row + 2: row + 2 + nrows, col: col + 5].reset_index(drop=True)
+        # Bound this island's block by the next island-header row, not by
+        # a fixed count of countries. The monthly source can add origins.
+        start = row + 2
+        stop = min((p["row"] for p in positions if p["row"] > row), default=len(df))
+        # Prefer the nearest origin-label column to the left of the island
+        # heading (some source sheets contain side-by-side tables).
+        label_col = next(
+            (c for c in range(col - 1, -1, -1)
+             if "aeropuerto procedencia" in str(df.iloc[row, c]).casefold()),
+            0,
+        )
+        matches = [
+            i for i in range(start, stop)
+            if " ".join(str(df.iloc[i, label_col]).split()).casefold() == "total pasajeros"
+        ]
+        if len(matches) != 1:
+            raise ValueError(f"Expected one TOTAL PASAJEROS row for {isla}, got {len(matches)}")
+        end = matches[0] + 1
+        labels = df.iloc[start:end, label_col].reset_index(drop=True)
+        values = df.iloc[start:end, col:col + 5].reset_index(drop=True)
 
         df_isla = pd.concat([labels, values], axis=1)
         df_isla.columns = ['AEROPUERTO_DE_PROCEDENCIA'] + list(df.iloc[row + 1, col: col + 5])
@@ -137,7 +156,7 @@ def backup_current_results():
 # ==============================================================
 # 🔹 Procesamiento principal del archivo
 # ==============================================================
-def process_new_excel(file_path, results_details, results_total, nrows=40):
+def process_new_excel(file_path, results_details, results_total, nrows=None):
     """
     Procesa un nuevo archivo Excel y añade registros a dos tablas:
       - result.csv  (detalles: cada categoría/origen)
@@ -228,6 +247,21 @@ def process_new_excel(file_path, results_details, results_total, nrows=40):
         df_totals = df_totals.dropna(subset=["Fecha", "Pasajeros", "Isla", "Año", "MesNum"])
         df_totals = df_totals.drop_duplicates(subset=["Isla", "Fecha"], keep="last")
 
+    # Reject partial imports before touching either historical CSV.
+    actual = set(df_totals["Isla"]) if not df_totals.empty else set()
+    if actual != EXPECTED_ISLANDS or len(df_totals) != len(EXPECTED_ISLANDS):
+        raise ValueError(f"Incomplete monthly totals for {fecha_str}: missing {EXPECTED_ISLANDS - actual}; extra {actual - EXPECTED_ISLANDS}")
+    if not df_totals["Pasajeros"].gt(0).all():
+        raise ValueError(f"Invalid monthly passenger totals for {fecha_str}")
+    detail_totals = df_details[
+        df_details["AEROPUERTO_DE_PROCEDENCIA"].astype(str).str.strip().str.casefold().eq("total pasajeros")
+    ].set_index("Isla")["Pasajeros"]
+    expected_totals = df_totals.set_index("Isla")["Pasajeros"]
+    if not detail_totals.sort_index().equals(expected_totals.sort_index()):
+        # Compare numeric values regardless of pandas int/float dtype.
+        if set(detail_totals.index) != actual or not (detail_totals.reindex(expected_totals.index) == expected_totals).all():
+            raise ValueError(f"Detailed and aggregated totals disagree for {fecha_str}")
+
     # 5) añadir a las tablas existentes y guardar SIN vacíos
     if not results_details.empty:
         results_details["Fecha"] = pd.to_datetime(results_details.get("Fecha"), errors="coerce")
@@ -237,7 +271,12 @@ def process_new_excel(file_path, results_details, results_total, nrows=40):
         results_total["Fecha"] = pd.to_datetime(results_total.get("Fecha"), errors="coerce")
         results_total["Pasajeros"] = pd.to_numeric(results_total.get("Pasajeros"), errors="coerce")
 
-    results_details = pd.concat([results_details, df_details], ignore_index=True) if not df_details.empty else results_details
+    # Replace the entire target month, including any previously saved partial rows.
+    if not results_details.empty:
+        results_details = results_details[results_details["Fecha"] != pd.Timestamp(fecha)]
+    if not results_total.empty:
+        results_total = results_total[results_total["Fecha"] != pd.Timestamp(fecha)]
+    results_details = pd.concat([results_details, df_details], ignore_index=True)
     results_total = pd.concat([results_total, df_totals], ignore_index=True) if not df_totals.empty else results_total
 
     # limpieza global
@@ -331,7 +370,7 @@ class PassengerAgent:
         files = [f for f in os.listdir(self.data_dir) if f.endswith(".xlsx")]
         if not files:
             return None
-        return sorted(files)[-1]
+        return max(files, key=lambda f: (parse_month_year_from_filename(f)[1], MESES_MAP[parse_month_year_from_filename(f)[0]]))
 
     def get_next_month_name(self, last_file: str):
         mes, anio = parse_month_year_from_filename(last_file)
@@ -399,24 +438,41 @@ class PassengerAgent:
         haz backup, actualiza CSV (con DROPNAs), FIN.
         (Sin lags en este paso — lo hace build_features()).
         """
-        files = sorted([f for f in os.listdir(self.data_dir) if f.endswith(".xlsx")])
-        if not files:
-            raise RuntimeError("❌ No hay archivos en data/. Añade el primero manualmente.")
-
-        last_file = files[-1]
-        next_month, next_year = self.get_next_month_name(last_file)
-        print(f"🧭 Último archivo: {last_file} → Busco: {next_month.title()} {next_year}")
-
-        # 1) descargar nuevo archivo
-        new_path = self.download_latest_file(next_month, next_year)
-        print(f"✅ Nuevo archivo guardado: {new_path}")
-
-        # 2) cargar CSV existentes
+        # A downloaded file is not proof of a successful import.
         if not Path(RESULT_DETAILS_CSV).exists() or not Path(RESULT_TOTAL_CSV).exists():
-            raise FileNotFoundError("❌ Faltan result.csv o result_total.csv. Necesitas datos base.")
-
+            raise FileNotFoundError("Missing result.csv or result_total.csv")
         results_details = pd.read_csv(RESULT_DETAILS_CSV, encoding="utf-8-sig")
         results_total = pd.read_csv(RESULT_TOTAL_CSV, encoding="utf-8-sig")
+
+        totals = results_total.copy()
+        totals["Fecha"] = pd.to_datetime(totals["Fecha"], errors="coerce")
+        totals["Pasajeros"] = pd.to_numeric(totals["Pasajeros"], errors="coerce")
+        complete = [
+            date for date, group in totals[totals["Pasajeros"].gt(0)].groupby("Fecha")
+            if set(group["Isla"]) == EXPECTED_ISLANDS
+            and len(group) == len(EXPECTED_ISLANDS)
+        ]
+        if not complete:
+            raise ValueError("No complete month in result_total.csv")
+        latest = max(complete)
+        target = latest + pd.offsets.MonthBegin(1)
+        next_month, next_year = SPANISH_MONTHS[target.month - 1], target.year
+        print(f"Last validated month: {latest:%Y-%m}; next: {target:%Y-%m}")
+
+        local_files = []
+        for path in Path(self.data_dir).glob("*.xlsx"):
+            try:
+                month, year = parse_month_year_from_filename(path.name)
+            except ValueError:
+                continue
+            if (month, year) == (next_month, next_year):
+                local_files.append(path)
+        if local_files:
+            new_path = str(sorted(local_files)[-1])
+            print(f"Retrying already downloaded file: {new_path}")
+        else:
+            new_path = self.download_latest_file(next_month, next_year)
+        print(f"Processing: {new_path}")
 
         # 3) backup
         backup_current_results()
